@@ -218,6 +218,8 @@ When complete, you should have:
 - Decision it informs.
 - Position in sequence (usually first).
 
+**Basis** footer — two or three lines on what the breakdown leans on (the formula, codebase patterns surfaced by sub-agents, dependencies that drove sequencing) and why the work's shaped this way.
+
 This is the breakdown.
 
 ---

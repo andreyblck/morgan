@@ -116,6 +116,7 @@ Avoid names that collide with Claude Code built-ins or common plugin commands. B
 
 ## Status
 
+- Version `0.1.10` — `/scope` and `/case` Output sections gain a one-line **Basis** footer requirement: short note on what the formula or breakdown leans on and why this approach. Additive only; existing flow untouched.
 - Version `0.1.9` — instructional weight polish from a parity audit: SKILL.md restores 5 calibration losses (persona affect, scope-flexes punchline, pre-commit hooks framing, Lenny role spec, consult imperatives); `pull.md` regains TDD closing step + atomic-commit example + structured `Brief each sub-agent with:` block; `track.md` Investigation forces minimum three parallel sub-agents.
 - Version `0.1.8` — explicit cycle handoffs: every command ends in a `## Next` block; SKILL.md gets a `Sequence the cycle` table and a tightened command imperative; `track.md` gains a diagnosis→fix fork before fix verification.
 - Version `0.1.7` — align .camp artefact filenames with command names; add explicit Workflows section to README.

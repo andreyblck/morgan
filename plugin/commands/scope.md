@@ -164,6 +164,7 @@ When complete, you should have:
 - Known constraints and risks (with strategies).
 - Agreed approach.
 - Breakdown (if scope is significant).
+- Brief **Basis** footer — two or three lines on what the formula leans on (source material, sub-agent findings, constraints) and why this approach over the alternatives.
 
 This is the formula.
 
