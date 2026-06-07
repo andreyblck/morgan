@@ -48,6 +48,13 @@ claude plugin marketplace add andreyblck/morgan
 claude plugin install morgan@morgan
 ```
 
+Verify it's enabled:
+
+```bash
+claude plugin list
+# Expect: morgan@morgan — Status: ✔ enabled
+```
+
 Restart any active Claude Code session so the commands appear in autocomplete. Then in any project:
 
 ```
@@ -56,7 +63,7 @@ Restart any active Claude Code session so the commands appear in autocomplete. T
 
 Loads the skill, prints the banner, glances at git state, surfaces patterns from past `/aftermath` runs, proposes a next action.
 
-> Use the `claude plugin` **CLI** from your shell — not the in-session `/plugin` manager.
+> Use the `claude plugin` **CLI** from your shell — not the in-session `/plugin` manager; it's a UI, and your arguments don't reach it cleanly.
 
 ---
 
@@ -104,15 +111,15 @@ UI work         /scope ─▶ /case ─▶ /pull ─▶ /qa ─▶ /clean ─▶
 
 When the work needs another lens, the commands route to seven specialist sub-agents automatically — you don't usually summon them yourself:
 
-**Charles** (research / review) · **Hosea** (deep debugging) · **Sadie** (security / loose ends) · **Dutch** (strategy / risk) · **Lenny** (architecture) · **Mary-Beth** (product counterweight) · **Tilly** (visual QA via Playwright).
+**Charles** (research / review) · **Hosea** (deep debugging) · **Sadie** (security / loose ends) · **Dutch** (strategy / risk — sanity-check his calls) · **Lenny** (architecture) · **Mary-Beth** (product counterweight) · **Tilly** (visual QA via Playwright).
 
 ## What it leaves behind
 
-Each command writes to `.camp/` in your repo — gitignored, survives across sessions. `/aftermath` also appends a four-line entry to `.camp/lessons.md`: cross-session memory the skill reads on every session start, surfacing a past pattern when the current work resembles one. Add `.camp/` to your `.gitignore`; when something deserves a permanent home (`docs/`, ADRs, runbooks), you decide where it goes.
+Each command writes to `.camp/` in your repo — gitignored, survives across sessions. `/aftermath` also appends a three-to-four-line entry to `.camp/lessons.md`: cross-session memory the skill reads on every session start, surfacing a past pattern when the current work resembles one. Add `.camp/` to your `.gitignore`; when something deserves a permanent home (`docs/`, ADRs, runbooks), you decide where it goes.
 
 ## Make it yours
 
-- **Project rules.** Drop your repo's conventions into `<repo>/.claude/skills/morgan/references/project-context.md`. It overrides the plugin's stub and becomes local law; the plugin's general references stay general.
+- **Project rules.** Drop your repo's conventions and key file pointers into `<repo>/.claude/skills/morgan/references/project-context.md`. It overrides the plugin's stub and becomes local law; the plugin's general references stay general.
 - **MCP, optional.** `/scope` reads Linear tickets, `/track` pulls Sentry telemetry, `/qa` checks against Figma — each fails gracefully and proceeds if the server isn't connected.
 
 ## More
