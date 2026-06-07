@@ -139,6 +139,8 @@ Use `/track` thinking if not already done:
 - What was the underlying cause?
 - What allowed this to happen?
 
+Naming a cause isn't proving one. Before this drives action items, clear `/track`'s certainty gate — it reproduces, accounts for everything, competitors ruled out, confidence Confirmed. If you can only name it, mark it a working theory and keep it out of the lessons file until it's proven.
+
 ### 3. Five Whys
 
 Keep asking why until you hit the systemic issue:
@@ -150,6 +152,8 @@ Keep asking why until you hit the systemic issue:
 5. Why never prioritized? → No incident had forced it.
 
 The fix isn't "be more careful" — it's "automate config management."
+
+Hitting the systemic issue isn't the same as proving it. Run the cause through the certainty gate before you write it down: it reproduces, it explains the whole timeline, competing causes are ruled out, confidence is Confirmed. Won't clear? It's a working theory — say so in the postmortem. Don't persist a guess as the root cause.
 
 ### 4. Contributing factors
 
@@ -198,6 +202,7 @@ After the postmortem document is saved, append a condensed entry to `.camp/lesso
 
 **Pattern:** [the kind of failure — e.g., "missing input validation on JSON parser"]
 **Root cause:** [one sentence]
+**Confidence:** [Confirmed / Strong theory — only log a Confirmed cause as settled; flag anything less so future-Arthur doesn't surface a theory as fact]
 **Watch for:** [the signal future-Arthur should recognize]
 **Action taken:** [the fix or process change]
 ```

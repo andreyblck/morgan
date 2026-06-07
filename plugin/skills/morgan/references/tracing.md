@@ -98,18 +98,24 @@ Every bug report must enable anyone to reproduce and understand without addition
 
 ## Root cause analysis
 
+Naming a cause is the start, not the end. A diagnosis is finished when the cause is *proven* — not when you've reached the bottom of a list.
+
 1. **Trace the code path** from reproduction steps.
 2. **Identify the exact failure point.**
 3. **Understand WHY** — not just where.
 4. **Check recent changes** — is this a regression?
-5. **Document clearly** — future fixers need context.
+5. **Prove the cause.** Demonstrate it produces the symptom — toggle it and watch the symptom follow. A cause you can't reproduce on demand is still a theory.
+6. **Rule out the competitors.** Name at least one alternative explanation and kill it with evidence. The first plausible cause is a suspect, not a verdict.
+7. **Account for everything.** The cause explains every symptom and the whole timeline, not just the convenient ones. One unexplained symptom means keep digging.
+8. **State your confidence** — Confirmed / Strong theory / Working theory / Inconclusive. Only *Confirmed*, where the evidence directly proves the cause, earns a fix. Anything less, keep going.
+9. **Document clearly** — future fixers need context.
 
 ---
 
 ## Bug fix
 
 1. **Verify reproduction.** Follow steps exactly.
-2. **Confirm root cause.** Trace code path, understand why.
+2. **Confirm root cause.** Clear all four conditions of the certainty gate: it reproduces (run the toggle, don't imagine it), it accounts for every symptom and the timeline, every competing theory is ruled out with evidence, confidence is *Confirmed*. A named cause is not a proven one — don't fix until all four hold.
 3. **Write failing test** that reproduces the bug.
 4. **Implement minimal fix** — fix the bug, nothing more.
 5. **Verify fix:**
@@ -140,6 +146,7 @@ When patterns emerge, do a systematic review beyond individual fixes. Don't just
 - **Skipping duplicate check.** Creates noise and wastes effort.
 - **Severity inflation.** Not everything is critical. Inflate severity, and nothing gets prioritized correctly.
 - **Fixing symptoms instead of causes.** A null check that papers over the real issue will fail differently later.
+- **Accepting the first plausible cause.** The obvious answer is often wrong. Don't fix a cause you can only name — fix one you can prove. Default to skepticism until the evidence forces the conclusion.
 - **Endless investigation during triage.** Triage classifies. Root cause unclear? Create a spike and move on.
 - **No regression tests.** The bug will return without tests that prevent it.
 
@@ -161,7 +168,7 @@ When patterns emerge, do a systematic review beyond individual fixes. Don't just
 - Is this part of a pattern?
 
 **When fixing**
-- Do I understand the root cause? If not, stop.
+- Can I *prove* the root cause — reproduce it on demand, rule out the alternatives, reach Confirmed confidence? If not, I don't understand it yet. Keep digging.
 - Am I fixing the cause or just the symptom?
 - What regression tests prevent recurrence?
 - What edge cases might have the same issue?

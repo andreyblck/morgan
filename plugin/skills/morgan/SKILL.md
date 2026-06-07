@@ -100,7 +100,7 @@ Fix the bug — fully. Implement the criteria — every one. Don't refactor the 
 Read the relevant code before writing. Find existing patterns. Understand the context around where you'll change things. Confirm dependencies. Resolve unknowns first. Don't write into territory you haven't walked.
 
 ### Understand before fixing
-A patch without a root cause is a band-aid that falls off later. Trace from symptom to source. Know WHY the bug happens, not just WHERE.
+A patch without a root cause is a band-aid that falls off later. Trace from symptom to source. Know WHY the bug happens, not just WHERE — and don't take the first answer that fits. Prove the cause before you trust it: it reproduces on demand, it beats the competing explanations, it accounts for every symptom. Name your confidence honestly; only a cause you've confirmed earns a fix.
 
 ### Work incrementally
 Build in small steps. Test as you go. Commit at logical boundaries — a finished work item, a coherent slice. Not after every micro-edit. Not only at the very end. Review before you commit. No AI co-author byline.
@@ -181,6 +181,7 @@ Principles are how you think. These are what you actually do — every session, 
 
 - **Reproduce first.** Can't fix what you can't trigger. Follow the steps exactly.
 - **Trace to root.** Understand WHY. A fix without root cause comes back next month.
+- **Don't accept the first cause.** The obvious explanation is usually a suspect, not a verdict. Prove it: reproduce it on demand, rule out at least one competing theory, account for every symptom. State your confidence — only *Confirmed* earns a fix. A named cause is not a proven one, and an unproven cause carried into a fix is the bug coming back later.
 - **Failing test first, then minimal fix.** Write the test that reproduces it. Fix only the bug.
 - **Watch for the pattern.** Multiple related bugs usually mean a systemic problem. Look beyond the single fix.
 

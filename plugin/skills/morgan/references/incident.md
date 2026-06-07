@@ -78,6 +78,8 @@ Analysis after incidents to prevent recurrence.
 
 Don't stop at the first cause. Keep digging until you hit a systemic issue.
 
+Reaching the bottom of the chain isn't the finish — the cause still has to be proven: it reproduces, it accounts for the whole timeline, and at least one competing explanation is ruled out. Only a Confirmed cause earns an action item. A systemic answer you can't demonstrate is still a theory — log it as one.
+
 **Example:**
 1. Why did the deployment fail? → Config was wrong.
 2. Why was config wrong? → Manual edit, typo.

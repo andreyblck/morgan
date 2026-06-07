@@ -60,7 +60,7 @@ STOP and use the AskUserQuestion tool to ask: What additional context is needed?
 
 ### 2. Investigate with sub-agents
 
-Spawn at least three sub-agents in parallel — one on the code path, one on git history, one on similar patterns. Compression is laziness; if four signals matter, four agents run. Don't waste main context on exploration an agent can do.
+Spawn at least three sub-agents in parallel — one on the code path, one on git history, one on similar patterns. Compression is laziness; if four signals matter, four agents run. Don't waste main context on exploration an agent can do. When the trail is cold or the obvious answer won't hold, send **Hosea** — he's built to not quit, and he reports a confidence verdict you can hold the diagnosis to.
 
 **Sub-agent tasks:**
 - Trace the code path from entry point to failure (name the entry point, the expected flow, and where it breaks).
@@ -77,6 +77,7 @@ Spawn at least three sub-agents in parallel — one on the code path, one on git
 **After collection:**
 - Verify findings against the actual code and git history. Sub-agents can misidentify the failure point or attribute changes to the wrong commits.
 - Synthesize into a picture of what happened: the code path, what changed, and where the investigation should focus next.
+- Hold a competing theory. Before you settle on an explanation, name at least one alternative and look for the evidence that would kill it. The first plausible cause is a suspect, not a verdict — if you've only got one theory, you haven't looked hard enough.
 
 ### 3. Reproduce
 
@@ -101,6 +102,8 @@ Don't stop at the first answer:
 
 Most people stop at Why #1. That's why bugs come back.
 
+Five is a rhythm, not a finish line. You're not done at Why #5 — you're done when the cause clears the certainty gate below. If three whys reach a systemic cause you can prove, stop there. If five don't, keep asking.
+
 ### 5. Check recent changes
 
 - Is this a regression?
@@ -118,11 +121,24 @@ Most people stop at Why #1. That's why bugs come back.
 
 Patterns signal systemic issues, not isolated bugs.
 
+### 7. Clear the certainty gate
+
+A named cause is not a proven cause. This is the gate the diagnosis has to clear before you touch a fix — and the line most people cross too early. All four must hold:
+
+1. **It reproduces.** You can turn the symptom on and off by manipulating the cause. Toggle it, watch the symptom follow — run the experiment, don't imagine it. A toggle you reasoned about but never executed isn't a reproduction. If you can't demonstrate the causal link, you've got a theory, not a root cause.
+2. **It accounts for everything.** The cause explains every symptom and the whole timeline — not just the convenient ones. One symptom it doesn't explain means you're not done.
+3. **The competitors are dead.** You named at least one alternative explanation and ruled it out with evidence. A single surviving theory you never challenged is not a conclusion.
+4. **Confidence is "Confirmed."** State it on Hosea's ladder — Confirmed / Strong theory / Working theory / Inconclusive. Only *Confirmed* clears the gate: the evidence directly proves the cause. Anything less, you keep digging or send another investigator. Say the verdict out loud. Never quietly downgrade certainty to call it done.
+
+The bar is the same for every bug; the effort isn't. A cause the code proves on sight clears all four as fast as you can name it — one read reproduces it, one symptom is the whole story, Confirmed is immediate. The harder the cause hides, the more these conditions earn their keep — and the more a small-looking fix tempts you to skip them. Don't. A one-line patch on an unproven cause is still a guess.
+
+If the gate won't clear, the diagnosis isn't finished — no matter how plausible the answer feels. Go back: another why, another agent, another angle. Don't carry an unproven cause into a fix — that's how the same bug returns later, looking like a new one.
+
 ---
 
 ## After diagnosis, before the fix
 
-Root cause is named. The next move depends on the size of the fix:
+Root cause is named *and the certainty gate is clear*. The next move depends on the size of the fix:
 
 - **Trivial fix.** One file, one site, no public contract change. Stay here. Write the failing test, patch it, commit. The rest of this command applies to you.
 - **Non-trivial fix.** Touches multiple sites. Changes a public contract. Has scope worth arguing about. Don't inline-plan it here. Step out: `/scope` to lock the fix's scope and success criteria, then `/case` to decompose, then `/pull` to build. Come back to "Fix verification" below when the work lands.
@@ -221,7 +237,8 @@ The root cause analysis exists only in conversation until saved. For significant
 - **Fixing without reproducing.** You're guessing.
 - **Fixing symptoms.** The null check that papers over the real issue.
 - **No regression tests.** The bug will return.
-- **Endless investigation.** Timebox it. If you can't find it in N hours, escalate or spike.
+- **Stopping at the first plausible cause.** A cause you can name but can't prove is a suspect, not a verdict. Assume your first theory is wrong until the evidence forces you to keep it. Clear the certainty gate before you fix anything.
+- **Confusing a timebox with a conclusion.** Bounding effort is fine — when a round of investigation comes up empty, escalate to the user. But escalation means "still a working theory, here's what I checked and what's next" — not a band-aid built on a guess. Never trade certainty for the clock.
 - **Severity inflation.** Not everything is critical.
 - **Ignoring patterns.** Three similar bugs = systemic problem.
 - **Investigating in main context.** Use sub-agents for research. Don't waste tokens.
