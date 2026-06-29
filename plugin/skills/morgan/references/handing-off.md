@@ -205,7 +205,7 @@ It earns its own file because the most useful part of unfinished work never reac
 - **Vague next steps.** "Continue working" tells nothing. Be specific.
 - **Stale information.** Wrong status is worse than no status.
 - **Missing commands.** The agent needs to know how to run the project.
-- **Project history in CLAUDE.md.** Don't include what happened. CLAUDE.md is current state + next action. *Settled* history belongs in commits and docs — but in-flight state (what you've tried and ruled out on work still moving) reached neither: it isn't committed and it isn't done. That goes in an in-flight working log under `.camp/`, with CLAUDE.md carrying a one-line pointer. Don't let "no history in CLAUDE.md" delete the trail — just keep the trail out of CLAUDE.md.
+- **Project history in CLAUDE.md.** Don't include what happened. CLAUDE.md is current state + next action. *Settled* history belongs in commits and docs — but in-flight state (what you've tried and ruled out on work still moving) reached neither: it isn't committed and it isn't done. That goes in an in-flight working log under `.camp/`, found by scanning there — not in CLAUDE.md. The trail lives in `.camp/`, where `/break` and recovery look for it; "no history in CLAUDE.md" stays true and costs you nothing.
 - **Claiming work is preserved.** Saying "no work lost" or "come back to this" when work exists only in conversation. Sessions end. Be honest about persistence.
 
 ---
@@ -220,7 +220,7 @@ Before completing handoff:
 - [ ] Next action is specific and actionable.
 - [ ] No stale or outdated information.
 - [ ] All significant work products saved (or explicitly declined by the user).
-- [ ] Work still in motion has an in-flight working log in `.camp/` (or nothing's in motion), and CLAUDE.md points to it.
+- [ ] Work still in motion has an in-flight working log in `.camp/` (or nothing's in motion).
 
 The next agent starts cold. Give them exactly what they need to continue.
 
