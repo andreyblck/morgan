@@ -41,6 +41,7 @@ Check the conversation for significant work products that exist only in context:
 - Decisions and rationale.
 - Architecture or design work.
 - Root cause analyses.
+- **In-flight narrative** — on work still moving: what was tried, what it produced, what's ruled out, what's still open. Not a finished product, so it's the first thing to slip. If a `/track` ledger exists, it's already captured; otherwise seal it to `.camp/trail-<slug>.md` in the in-flight working log format (see `handing-off`).
 - Anything that took substantial effort to produce.
 
 **For each unpersisted item:** ask the user — "This exists only in conversation. Want me to save it?" Default to `.camp/` if they don't specify a location. Don't assume. Don't skip. Don't batch them — name each one specifically.
@@ -66,10 +67,11 @@ Update the project root `CLAUDE.md` with current state:
 - **Status** — what exists, what's in progress. Reflect reality, not plans.
 - **Next** — specific next action. Not "continue working." What should the next agent do first?
 - **Context** — 1–3 bullets of important context. Recent decisions, blockers, gotchas.
+- **In flight** — if work is paused mid-stream, a one-line pointer to its in-flight working log (`.camp/track-<slug>.md` or `.camp/trail-<slug>.md`). The pointer goes here; the trail itself stays in `.camp/`.
 - **Commands** — verify these still work. Update if anything changed.
 - **Structure** — update if files or directories changed.
 
-Keep it minimal. The next agent can explore — they need a launchpad, not a journal.
+Keep it minimal. The next agent can explore — they need a launchpad, not a journal. The trail of a live investigation isn't journal-in-CLAUDE.md; it's a one-line pointer here to a log that lives in `.camp/`.
 
 ### 4. Close out
 
@@ -87,6 +89,7 @@ Before completing:
 - [ ] Status reflects actual state (not stale).
 - [ ] Next action is specific and actionable.
 - [ ] Commands section has working commands.
+- [ ] Work still in motion has an in-flight log in `.camp/` (or nothing's in motion), and CLAUDE.md points to it.
 - [ ] No claims of preserved work that only exists in conversation.
 
 ---
@@ -113,7 +116,7 @@ Before completing:
 - **Vague next steps.** "Continue working" tells nothing. Be specific about the next action.
 - **Stale information.** Wrong status is worse than no status. Verify before writing.
 - **Skipping the work-product scan.** The whole point is nothing gets lost. Check the conversation.
-- **Project history in CLAUDE.md.** What happened belongs in commits and docs. CLAUDE.md is current state + next action.
+- **Project history in CLAUDE.md.** Settled history belongs in commits and docs — but in-flight state (what you've tried and ruled out on work still moving) belongs in a `.camp/` working log, with CLAUDE.md carrying a one-line pointer. CLAUDE.md stays current state + next action; the trail lives in `.camp/`, not in commits it never reached.
 - **Claiming work is preserved.** If it's only in conversation, say so. Don't let the user think it's saved when it isn't.
 - **Leaving completed work uncommitted.** If the work is done, commit it. "There are uncommitted changes" for finished work is a failure state, not a status update.
 

@@ -52,6 +52,8 @@ Don't just find WHERE it fails. Understand WHY.
 
 ## Diagnosis workflow
 
+Open a ledger before you dig, and keep it live. The instant this is more than a one-read fix, start an in-flight working log at `.camp/track-<slug>.md` and write to it *as you go* — every attempt and what it produced, and each killed theory under **Ruled out** with the evidence that killed it, recorded the moment you rule it out, not from memory later. That ledger survives a dropped session and is what the next agent reads to keep off your dead ends. Format and sections: see the in-flight working log in the `handing-off` reference.
+
 ### 1. Gather information
 
 If the symptom, timeline, and scope are already clear, proceed. Otherwise:
@@ -211,7 +213,7 @@ Discovery is `/track`. Recovery and learning is `/aftermath`.
 
 ## Persist
 
-The root cause analysis exists only in conversation until saved. For significant bugs — especially systemic ones — save the trace findings to `.camp/track-<symptom-slug>.md`. Root cause, fix rationale, and regression context are valuable for future debugging and postmortems.
+If you kept a live ledger (you should have — see the Diagnosis workflow), the trace already lives at `.camp/track-<symptom-slug>.md`. Close it out: fold in the confirmed root cause, the fix rationale, and the regression context, and set **Confidence** to where it actually landed. The ruled-out theories stay — they're the part that saves the next debugging session, not noise to clear. If the bug was trivial enough that you skipped the ledger, write the trace now; root cause and regression context are worth keeping for future debugging and postmortems.
 
 ---
 
