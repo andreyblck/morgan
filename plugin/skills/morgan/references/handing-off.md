@@ -152,13 +152,60 @@ CLAUDE.md = current state. Context log = history. Most projects only need CLAUDE
 
 ---
 
+## In-flight working log
+
+The Context log above is history — what changed, in order. This is a different animal: the *live* state of work still in motion. What you tried, what it gave back, what you've ruled out, what's still open. The trail while you're still walking it.
+
+It earns its own file because the most useful part of unfinished work never reaches a commit. Nobody commits a theory they disproved or an approach they abandoned — but the next agent needs exactly those to keep from re-walking dead ends. CLAUDE.md won't carry it (launchpad, not journal). A finished work product won't carry it (the work isn't finished). So it gets a home of its own.
+
+**Keep one when:**
+
+- **Debugging.** `/track` writes it *as the investigation runs*, not after. Ruled-out theories and the evidence that killed them go in the moment you find them — not once the cause is confirmed.
+- **Work paused mid-flight.** `/camp` seals it when the session ends before the work does.
+
+**Where it lives:** `.camp/`, gitignored, survives across sessions.
+
+- `.camp/track-<slug>.md` — written by `/track`.
+- `.camp/trail-<slug>.md` — written by `/camp` for non-debug work in motion.
+
+**Format:**
+
+```markdown
+# {what we're chasing} — {slug}
+
+## Goal
+{One line: the symptom under investigation, or the outcome the work drives at.}
+
+## Timeline
+{What was tried, in order — each entry an action and what it produced. Newest last.}
+- Tried {X} → got {Y}.
+
+## Ruled out
+{Theories and approaches killed, each with the evidence that killed it. This is the part that stops the next agent re-treading.}
+- Not {Z} — {evidence}.
+
+## Open / untried
+{Live hypotheses and angles not yet walked. Best first.}
+- Maybe {W} — {why it's plausible, how to test it}.
+
+## Confidence
+{Where the diagnosis stands: Confirmed / Strong theory / Working theory / Inconclusive. Say it plainly.}
+
+## Next
+{The single next concrete action.}
+```
+
+**Read on resume.** This is the file `/break <task>` loads to put the next agent back on the trail, and the file skill recovery scans to surface open work at session start. Keep **Open / untried** honest — on a cold start it's read first.
+
+---
+
 ## Anti-patterns
 
 - **Too much detail.** This isn't full documentation. The next agent can explore. Focus on what's NOW.
 - **Vague next steps.** "Continue working" tells nothing. Be specific.
 - **Stale information.** Wrong status is worse than no status.
 - **Missing commands.** The agent needs to know how to run the project.
-- **Project history in CLAUDE.md.** Don't include what happened. CLAUDE.md is current state + next action. History belongs in commits and docs.
+- **Project history in CLAUDE.md.** Don't include what happened. CLAUDE.md is current state + next action. *Settled* history belongs in commits and docs — but in-flight state (what you've tried and ruled out on work still moving) reached neither: it isn't committed and it isn't done. That goes in an in-flight working log under `.camp/`, with CLAUDE.md carrying a one-line pointer. Don't let "no history in CLAUDE.md" delete the trail — just keep the trail out of CLAUDE.md.
 - **Claiming work is preserved.** Saying "no work lost" or "come back to this" when work exists only in conversation. Sessions end. Be honest about persistence.
 
 ---
@@ -173,6 +220,7 @@ Before completing handoff:
 - [ ] Next action is specific and actionable.
 - [ ] No stale or outdated information.
 - [ ] All significant work products saved (or explicitly declined by the user).
+- [ ] Work still in motion has an in-flight working log in `.camp/` (or nothing's in motion), and CLAUDE.md points to it.
 
 The next agent starts cold. Give them exactly what they need to continue.
 
