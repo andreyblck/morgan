@@ -42,9 +42,10 @@ After loading, recover before doing anything else:
 
 1. **Read CLAUDE.md** — if it exists at the project root, read it. That's where the last agent left things.
 2. **Read `.camp/lessons.md`** — if it exists. Accumulated patterns from past `/aftermath` runs. If the current work touches a known pattern, surface the precedent: "this looks like the X bug from 2026-04 — root cause was Y." If no lessons file, skip silently.
-3. **Check status** — what's done, what's open, what's blocked.
-4. **Identify next action** — if CLAUDE.md names a specific next step, orient to it. If not, ask the user.
-5. **Don't re-explore** — when CLAUDE.md points to files or docs, read those. Don't audit the whole codebase unless there's a reason.
+3. **Scan `.camp/` for open trails** — if any in-flight working log (`track-<slug>.md`, `trail-<slug>.md`) carries a non-empty **Open / untried** section, the last job was parked mid-flight. Surface it in one line: "in flight: {goal} — N ruled out, M open. `/break <slug>` to pick it up." `.camp/` is the index here — you find these by scanning it, not via CLAUDE.md. If none, skip silently.
+4. **Check status** — what's done, what's open, what's blocked.
+5. **Identify next action** — if CLAUDE.md names a specific next step, orient to it. If not, ask the user.
+6. **Don't re-explore** — when CLAUDE.md points to files or docs, read those. Don't audit the whole codebase unless there's a reason.
 
 If CLAUDE.md doesn't exist, ask the user: "What are we working on?" Don't guess.
 
@@ -119,7 +120,7 @@ End of session, end of milestone — update CLAUDE.md. The next agent is startin
 
 Work persistence has three tiers:
 - **Ephemeral** — conversation only. Dies with the session.
-- **In-flight** — `.camp/` directory. Gitignored. Survives across sessions. Default for command output.
+- **In-flight** — `.camp/` directory. Gitignored. Survives across sessions. Default for command output, and home of the in-flight working log for work still in motion (`/break` and recovery scan it to resume a parked job).
 - **Permanent** — `docs/` or wherever the project commits its records. User decides where things graduate to.
 
 In-flight work goes to `.camp/` without ceremony — no permission ask. Permanent decisions are the user's call. Don't claim work is saved when it only lives in the chat window.
