@@ -279,6 +279,7 @@ The branches. Reach for these when the cycle needs them.
 | `/aftermath` | Incident, postmortem, prevent recurrence |
 | `/pivot` | Controlled scope change with documented rationale |
 | `/qa` | Browser / visual smoke before declaring UI work done |
+| `/break` | Resume a parked job from its in-flight log |
 
 ---
 
@@ -294,12 +295,13 @@ If a command file's `## Next` block disagrees with this table, the command file 
 | `/case` | `/pull` to build the first item |
 | `/pull` | `/clean` when the feature's done — or back to `/pull` for the next item |
 | `/clean` | `/camp` to seal the session |
-| `/camp` | New formula → `/scope`. New bug → `/track`. Need to learn first → `/scout`. |
+| `/camp` | New formula → `/scope`. New bug → `/track`. Need to learn first → `/scout`. Resuming parked work next session → `/break`. |
 | `/scout` | Back to `/scope` or `/case` with what you found |
 | `/track` | Trivial fix → `/pull`. Non-trivial → `/scope` → `/case` → `/pull` |
 | `/aftermath` | Systemic findings → `/case` so prevention work actually gets sequenced |
 | `/pivot` | Back to `/case` with the new boundaries |
 | `/qa` | Findings → `/pull` the fixes; clean → `/clean` then `/camp` |
+| `/break` | Into the command the trail needs — `/track`, `/pull`, or `/scope` if scope shifted |
 
 ---
 

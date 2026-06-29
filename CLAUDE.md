@@ -11,11 +11,11 @@ You're working on the **plugin source** of `morgan`. This is the tool itself —
 ├── .claude-plugin/marketplace.json     # marketplace manifest
 ├── plugin/                             # plugin source
 │   ├── .claude-plugin/plugin.json      # plugin manifest
-│   ├── commands/                       # 10 slash commands (.md per command)
+│   ├── commands/                       # 11 slash commands (.md per command)
 │   ├── agents/                         # 7 sub-agents (.md per agent)
 │   └── skills/morgan/
 │       ├── SKILL.md                    # master persona + principles
-│       ├── references/                 # 12 reference docs
+│       ├── references/                 # 13 reference docs
 │       └── templates/intro.md          # first-load greeting
 ├── .markdownlint.json
 ├── .prettierrc
@@ -116,12 +116,13 @@ Avoid names that collide with Claude Code built-ins or common plugin commands. B
 
 ## Status
 
+- Version `0.1.12` — **in-flight working log + `/break`**, closing the handoff gap where the *live* trail of a job in motion — what was tried, what it produced, what's ruled out, what's still open — had no home and died with the session (it never reaches a commit). `handing-off.md` defines the format (six sections, generalised in-house from `incident.md` Timeline+Hypotheses and `hosea.md` Dead-ends/Gaps) and splits *settled history → commits* from *in-flight state → `.camp/`*, so CLAUDE.md stays a launchpad. `track.md` writes the ledger live, before the cause is Confirmed; `camp.md` seals non-debug in-flight work to `.camp/trail-<slug>.md`. New `break.md` (`/break <task>`) resumes a parked job by scanning `.camp/`; `SKILL.md` Recovery scans `.camp/` for open trails at session start. Mechanism is **decoupled from CLAUDE.md by design** — `.camp/` is the self-describing index (`/break` and recovery find logs there), so it works on projects that don't keep a CLAUDE.md and never bloats one that does. Diagnosed and built through the full cycle (`/track` 4-agent investigation → gap Confirmed, adversary survived → `/scope` → `/case` → `/pull`).
 - Version `0.1.11` — debugging gains a **certainty gate**, closing the "stops at the first plausible cause" gap. A diagnosis is "done" when the cause is *proven*, not when a 5-Whys list bottoms out. `track.md` adds a four-condition gate (reproduces — run the experiment, don't imagine it / accounts for everything / competitors ruled out / Confirmed confidence) before the fix, names Hosea for cold trails, requires a competing theory, reframes the "timebox → stop" anti-pattern into "escalate as a working theory, never ship a guess," and carries a proportionality note (same bar every bug, effort scales — no skip-loophole). `tracing.md` root-cause analysis grows prove/compete/account/confidence steps and the bug-fix recap points at the full gate; `SKILL.md` "When debugging" + "Understand before fixing" carry the gate; `hosea.md` rule + verification step 7 hardened to operational (reproduce/account/kill-competitors before Confirmed). The gate also threads the `/aftermath` path so it can't be contradicted downstream: `incident.md` 5 Whys and `aftermath.md` Root-cause/Five-Whys gain the proof requirement, and the `.camp/lessons.md` entry gets a **Confidence** field so recovery never re-surfaces a theory as fact. Fix was adversarially red-teamed via a verification workflow (28 candidate findings → 9 confirmed, all applied; gate's four-ANDed-conditions structure held against gameability/over-rotation attacks).
 - Version `0.1.10` — `/scope` and `/case` Output sections gain a one-line **Basis** footer requirement: short note on what the formula or breakdown leans on and why this approach. Additive only; existing flow untouched.
 - Version `0.1.9` — instructional weight polish from a parity audit: SKILL.md restores 5 calibration losses (persona affect, scope-flexes punchline, pre-commit hooks framing, Lenny role spec, consult imperatives); `pull.md` regains TDD closing step + atomic-commit example + structured `Brief each sub-agent with:` block; `track.md` Investigation forces minimum three parallel sub-agents.
 - Version `0.1.8` — explicit cycle handoffs: every command ends in a `## Next` block; SKILL.md gets a `Sequence the cycle` table and a tightened command imperative; `track.md` gains a diagnosis→fix fork before fix verification.
 - Version `0.1.7` — align .camp artefact filenames with command names; add explicit Workflows section to README.
-- 10 commands, 7 agents, 13 references shipped.
+- 11 commands, 7 agents, 13 references shipped.
 - Smoke install probe still TODO from a clean shell.
 
 ---

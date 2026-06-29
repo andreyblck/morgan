@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "morgan",
   "metadata": {
-    "description": "Engineering discipline for Claude Code: 1 skill, 7 agents, 10 commands. Plan the job, case the joint, pull it clean."
+    "description": "Engineering discipline for Claude Code: 1 skill, 7 agents, 11 commands. Plan the job, case the joint, pull it clean."
   },
   "owner": {
     "name": "Andrey Black",
@@ -11,8 +11,8 @@
   "plugins": [
     {
       "name": "morgan",
-      "description": "Engineering discipline for Claude Code: 1 skill, 7 agents, 10 commands. Plan the job, case the joint, pull it clean.",
-      "version": "0.1.11",
+      "description": "Engineering discipline for Claude Code: 1 skill, 7 agents, 11 commands. Plan the job, case the joint, pull it clean.",
+      "version": "0.1.12",
       "author": {
         "name": "Andrey Black",
         "email": "a.creatuse@gmail.com"
