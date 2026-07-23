@@ -137,7 +137,7 @@ Before proceeding:
 - Confirm success criteria.
 - Confirm approach.
 
-Not silence. Not "sounds good." Explicit approval. Changes after this point require explicit acknowledgment — see `/audible`.
+Not silence. Not "sounds good." Explicit approval. Changes after this point require explicit acknowledgment — see `/pivot`.
 
 ---
 

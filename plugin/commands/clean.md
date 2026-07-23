@@ -37,7 +37,7 @@ Spawn sub-agents to check in parallel. Don't waste context on verification tasks
 **Sub-agent tasks:**
 - Review code against acceptance criteria (list every criterion explicitly in the prompt).
 - Check for pattern violations and anti-patterns (name the patterns from the codebase and what violations look like).
-- Verify test coverage and quality (specify the test directories, what should be tested, and what "meaningful" coverage means).
+- Verify test coverage and quality (specify the test directories and what should be tested). Give them the standard from the `building` reference, limited to what's visible in the code: on core logic, a test whose expected value is computed the way the implementation computes it, or one that asserts on the unit's private internals, or one that replaces a collaborator inside the codebase, is a Major finding. Tell them what isn't: a committed snapshot or golden file is not a finding unless it was updated alongside a behaviour change with no reason given, and database seeding, persisted-row assertions and injected failures are ordinary setup. Whether a test was seen failing isn't visible here — that one belongs to `/pull`.
 - Run automated quality checks — lint, type check, build, test suite — and report pass/fail with any errors.
 - Validate documentation accuracy (point to the docs and what they should reflect).
 
@@ -81,10 +81,10 @@ Verify the work meets criteria:
    - No commented code.
    - Error handling complete.
 
-3. **Tests** — meaningful coverage.
+3. **Tests** — coverage that would catch a regression.
    - Tests exist for new functionality.
    - All tests passing.
-   - Not gaming coverage numbers.
+   - Each one meets the standard in the `building` reference — a test that can't fail isn't coverage.
 
 4. **Documentation** — updated and accurate.
 
@@ -175,7 +175,7 @@ A clean report:
 
 ## Prep compliance
 - WI 1.1: built, criteria met
-- WI 2.3: built, but added behavior X without an audible — Major
+- WI 2.3: built, but added behavior X without a pivot — Major
 - ...
 
 ## Quality

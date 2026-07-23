@@ -38,7 +38,7 @@ If no task was specified, STOP and ask: "What are we pulling? Point me to the wo
 - [ ] Acceptance criteria for this work item are specific.
 - [ ] Dependencies on prior items are satisfied.
 - [ ] You've read the surrounding code — patterns, naming, structure.
-- [ ] Pre-commit hooks exist (lint, type check, format, tests). If missing and the work is real, set them up first.
+- [ ] Pre-commit hooks exist (lint, type check, format, tests). If missing and the work is real, set them up first — then prove they bite before trusting them.
 - [ ] Governing docs at hand — `.camp/` artefacts, project `CLAUDE.md`, project-specific references.
 
 If any are unclear, stop. Don't `/pull` without a formula and prep.
@@ -84,13 +84,13 @@ No big-bang. No "implement everything, then test."
 ### TDD where it fits
 
 For business logic, algorithms, APIs, service methods:
-1. Write the failing test.
+1. Write the test. Run it. Watch it fail, and check it failed for the reason you expect.
 2. Write the best implementation — not just enough to pass.
 3. Refactor if needed.
 4. Repeat until the unit is complete.
 5. Run the local checks (lint, type check, build, tests). Self-review. Then commit.
 
-Test what's worth testing. Don't theatre-test glue code or declarative UI just to hit coverage numbers.
+Test what's worth testing. Don't theatre-test glue code or declarative UI just to hit coverage numbers. What makes a test evidence rather than noise is in the `building` reference — four conditions, and a test that misses one still goes green.
 
 ### Match existing patterns
 
@@ -134,7 +134,7 @@ Run automated checks first. Then review what tooling can't catch.
 - [ ] Error paths handled.
 - [ ] Edge cases handled (null, empty, boundary, overflow).
 - [ ] No hardcoded paths, secrets, or env-specific values.
-- [ ] Tests verify behavior, not coverage numbers.
+- [ ] No test computes its expected value the way the implementation does.
 
 Use sub-agents for review when scope warrants it. Charles or Lenny for code review. Sadie for security. Tilly for UI.
 
@@ -155,7 +155,7 @@ Can't tick all? Not done.
 
 ## Persist
 
-`/pull` doesn't produce a persistence artefact by itself — it produces code. Commits go to git. Notes during the build can land in `.camp/` if needed (e.g., a discovery that informs future audibles).
+`/pull` doesn't produce a persistence artefact by itself — it produces code. Commits go to git. Notes during the build can land in `.camp/` if needed (e.g., a discovery that informs a later pivot).
 
 When the work item is done, mark it done in the prep.
 

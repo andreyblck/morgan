@@ -34,13 +34,9 @@ If no issue was specified, STOP and use the AskUserQuestion tool to ask: What's 
 
 ### Can't fix what you can't reproduce
 
-Before investigating:
-1. Get reproduction steps.
-2. Follow them exactly.
-3. Confirm you can trigger the issue.
-4. Note any variations.
+The reproduction is a command, not a claim. Get the steps, follow them exactly, and turn them into something you can run on demand and run again — see step 2 below. Note the variations you find along the way; they narrow the cause faster than reading does.
 
-If you can't reproduce it, you can't reliably fix it. Period.
+A bug you've only read about is a bug you're guessing at. Period.
 
 ### Root cause over symptoms
 
@@ -60,7 +56,32 @@ If the symptom, timeline, and scope are already clear, proceed. Otherwise:
 
 STOP and use the AskUserQuestion tool to ask: What additional context is needed? Specifically — what is the symptom? When did it start? What changed recently? Who/what is affected? How often does it occur?
 
-### 2. Investigate with sub-agents
+### 2. Build the reproduction command
+
+Before you read code to build a theory, make the failure something you can run. Not "I followed the steps" — a named command you have actually executed, whose output you can paste, that asserts the symptom the user reported.
+
+Four conditions on the command:
+
+- It drives the real code path and asserts *the user's* symptom — not a nearby failure that happens to be red.
+- Same verdict every run.
+- Seconds, not minutes. You're going to run it a hundred times.
+- You can run it unattended.
+
+Reach for the cheapest rung that gives you that, and climb only as far as you need: a failing test → a `curl` or CLI invocation → a command plus a fixture, diffed against expected output → a headless browser run → a captured real request replayed → a purpose-built harness.
+
+Same bar for every bug; the effort scales. A crash the stack trace explains on sight is reproduced by the test you were going to write anyway — one command, thirty seconds, move on. The harder the failure is to pin, the more the rungs above earn their keep.
+
+**If it only fails sometimes.** You're not chasing a clean reproduction — you're chasing a higher failure rate. Loop it a hundred times, run copies in parallel, load the machine, widen the timing window with a sleep in the suspect path. One failure in two is a bug you can work; one in a hundred isn't. Record the rate you reached: a measured rate is what lets you run the gate's toggle later, by comparing the rate with the suspected cause present and removed. A rate is not itself a toggle — it's what makes the toggle readable.
+
+**If a person has to perform a step** you can't reach, give them one script with fixed prompts that reads their answers back to you, so every round is comparable. That's the bottom rung — take it only when the automated options are closed.
+
+**If you can't build one at all**, say so plainly and stop. List what you tried, then ask for one of three things: access to somewhere it does reproduce, a captured artefact (log dump, network capture, recording with timestamps), or the go-ahead to add temporary instrumentation where it happens.
+
+### 3. Cut it down
+
+Shrink the failing case before you theorise about it — cut one thing at a time and re-run, until pulling any remaining piece turns it green. What's left is the smallest space the cause can be hiding in, and every element still standing is a suspect worth your time. Keep it; it's the raw material for the regression test, though where that test lives is settled under Fix verification below.
+
+### 4. Investigate with sub-agents
 
 Spawn at least three sub-agents in parallel — one on the code path, one on git history, one on similar patterns. Compression is laziness; if four signals matter, four agents run. Don't waste main context on exploration an agent can do. When the trail is cold or the obvious answer won't hold, send **Hosea** — he's built to not quit, and he reports a confidence verdict you can hold the diagnosis to.
 
@@ -79,21 +100,18 @@ Spawn at least three sub-agents in parallel — one on the code path, one on git
 **After collection:**
 - Verify findings against the actual code and git history. Sub-agents can misidentify the failure point or attribute changes to the wrong commits.
 - Synthesize into a picture of what happened: the code path, what changed, and where the investigation should focus next.
-- Hold a competing theory. Before you settle on an explanation, name at least one alternative and look for the evidence that would kill it. The first plausible cause is a suspect, not a verdict — if you've only got one theory, you haven't looked hard enough.
 
-### 3. Reproduce
+### 5. Line up the causes
 
-Follow reproduction steps exactly:
-- Same environment.
-- Same inputs.
-- Same sequence.
+Name three to five candidates **before you test any of them**. The first explanation you think of gets tested first, survives because you went looking for what confirms it, and quietly becomes the answer. Generating the field first is the cheap defence against that.
 
-Document:
-- What you tried.
-- What happened.
-- Any variations.
+Write each one as a prediction you could be proven wrong about: *if this is the cause, then changing Y makes the symptom disappear.* A candidate that won't take that shape isn't a theory yet. Sharpen it until it makes a claim, or drop it.
 
-### 4. The 5 Whys
+Rank them by what the evidence so far actually supports, then **put the list in front of the user before you start testing**. They know things the codebase doesn't — that number three shipped yesterday, that number one was ruled out last month. One reply often kills half the field. Don't block on them if they're away; note that you didn't wait and carry on.
+
+This is upstream of the certainty gate, not a substitute for it. Lining up candidates is how you avoid anchoring; killing them with evidence is what the gate below demands.
+
+### 6. The 5 Whys
 
 Don't stop at the first answer:
 1. "Why did this fail?" → [answer]
@@ -106,7 +124,7 @@ Most people stop at Why #1. That's why bugs come back.
 
 Five is a rhythm, not a finish line. You're not done at Why #5 — you're done when the cause clears the certainty gate below. If three whys reach a systemic cause you can prove, stop there. If five don't, keep asking.
 
-### 5. Check recent changes
+### 7. Check recent changes
 
 - Is this a regression?
 - What changed recently?
@@ -114,7 +132,7 @@ Five is a rhythm, not a finish line. You're not done at Why #5 — you're done w
 
 `git log` and `git bisect` are your friends.
 
-### 6. Look for patterns
+### 8. Look for patterns
 
 - Same module?
 - Same type of error?
@@ -123,7 +141,7 @@ Five is a rhythm, not a finish line. You're not done at Why #5 — you're done w
 
 Patterns signal systemic issues, not isolated bugs.
 
-### 7. Clear the certainty gate
+### 9. Clear the certainty gate
 
 A named cause is not a proven cause. This is the gate the diagnosis has to clear before you touch a fix — and the line most people cross too early. All four must hold:
 
@@ -169,7 +187,7 @@ Classify quickly. Don't investigate deeply during triage.
 
 - **Clear and fixable** → fix it.
 - **Needs investigation** → create spike, timebox it.
-- **Cannot reproduce** → request more info.
+- **Cannot reproduce** → try for a failure rate before you call it that; if the loop still won't build, name what you tried and ask for access, a capture, or instrumentation.
 - **Duplicate** → link and close.
 - **Not a bug** → close with explanation.
 - **Feature request** → separate work item.
@@ -180,10 +198,14 @@ Classify quickly. Don't investigate deeply during triage.
 
 After fixing:
 1. Failing test passes.
-2. Reproduction steps no longer fail.
+2. The reproduction command from step 2 no longer fails — run it, don't assume it.
 3. Full test suite green.
 4. Regression tests added for edge cases.
 5. No unintended side effects.
+
+The reduced case from step 3 is the content of the regression test, but not automatically its shape. Put the test at a seam that runs the bug the way it actually happened. If the only seam available is shallower than the failure — a single-caller test for something that needed two callers, a unit test that can't build the chain that broke — it's green today and it'll be green through the next occurrence.
+
+If no seam runs the real path, that's a finding about the code, not a gap in your effort. Say it plainly, fix the bug anyway, and raise the structural problem after the fix lands — send Lenny at it, or carry it to `/case`. What you don't do is settle for a test that would have passed either way.
 
 If you can't prove it's fixed, it's not fixed.
 
@@ -236,7 +258,8 @@ If you kept a live ledger (you should have — see the Diagnosis workflow), the 
 
 ## Anti-patterns
 
-- **Fixing without reproducing.** You're guessing.
+- **Fixing without reproducing.** You're guessing. So is reading code to build a theory before any command has failed — the reproduction comes first, then the thinking.
+- **Hypothesising against the whole scenario.** Every element you didn't cut is a suspect you'll spend time on. Shrink the case, then think.
 - **Fixing symptoms.** The null check that papers over the real issue.
 - **No regression tests.** The bug will return.
 - **Stopping at the first plausible cause.** A cause you can name but can't prove is a suspect, not a verdict. Assume your first theory is wrong until the evidence forces you to keep it. Clear the certainty gate before you fix anything.

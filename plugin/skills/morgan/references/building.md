@@ -43,7 +43,7 @@ Transform specs into working code through disciplined, incremental implementatio
 
 When appropriate (business logic, algorithms, APIs, service methods):
 
-1. **Write the test** for the criterion.
+1. **Write the test** for the criterion, run it, and confirm it fails for the reason you expect.
 2. **Write the best implementation** — not just enough to pass the test.
 3. **Iterate** if tests fail or quality isn't right.
 4. **Repeat** for the next criterion.
@@ -51,6 +51,24 @@ When appropriate (business logic, algorithms, APIs, service methods):
 6. **Review and commit** at the logical boundary — one coherent unit.
 
 TDD does not apply to: environment setup, config files, schema definitions, UI layout, third-party integrations.
+
+---
+
+## What a test has to prove
+
+A passing test is not evidence. A test is evidence when it would have caught the thing it claims to protect against — and a test that cannot fail passes the suite, passes review, and gets reported as correctness. Four conditions, and one missing is enough.
+
+**It was seen failing.** Run it before the implementation exists and read the failure. Not just that it went red — that it went red for the reason you expect. A test that fails because the module doesn't import yet has said nothing about the behaviour you're specifying. If it passes before you write the code, either the behaviour already exists or the test doesn't reach it. Find out which.
+
+**The expected value came from somewhere other than the code under test.** An acceptance criterion, an example worked by hand, a known-good figure, a value the spec fixes. If the only way to know the answer is to run the code — or to rebuild its algorithm inside the test — the test restates the implementation and will agree with it forever, including when it's wrong. Snapshots and golden files are the exception by construction: their expected value is generated, so the discipline moves to reading the recorded output the first time, and treating every later change to it as a claim that needs a reason.
+
+This one bites hardest where there's nothing to test against — old code, no spec, no ticket, nobody left who remembers. The pull is to run it, paste what came back, and call that a test. Do the work instead: read the code, state the rule it appears to implement, and compute each expectation from that rule. Where a value only exists because the code produces it, say so on the line and say which way you'd expect it to go if someone ever wrote the requirement down. A suite that pins present behaviour is worth having — it catches drift — but it certifies nothing, and the difference has to be visible to whoever reads it next. Name the values you'd challenge rather than burying them among the ones you'd defend.
+
+**It asserts through the same door the caller uses.** Set up through the public entry point, assert on what a caller can observe. Asserting on the private internals of the unit welds the test to today's implementation. The tell: a test that breaks under a change that altered no observable behaviour is a defective test — fix the test rather than preserve the shape it was pinning. Seeding a database, asserting persisted rows, or injecting a failure to reach an error path are ordinary setup, not violations.
+
+**It substitutes only past a boundary you don't own.** The network, the clock, the filesystem, a third-party service, anything slow or nondeterministic — replace those. A collaborator inside your own code is part of what you're testing; replacing it leaves a test of your own wiring that stays green while the behaviour rots. When faking an internal piece feels necessary, that's usually the design talking.
+
+This is a bar on what counts as a test, not on how many to write.
 
 ---
 
@@ -62,7 +80,7 @@ TDD does not apply to: environment setup, config files, schema definitions, UI l
 2. **Pre-implementation review:**
    - Read everything (spec, acceptance criteria, related code).
    - Check dependencies.
-   - Verify environment — pre-commit hooks installed and running. If missing, set them up.
+   - Verify environment — pre-commit hooks installed and running. If missing, set them up, then prove the guard bites: write a deliberate violation of the rule you just installed, confirm the hook rejects it, revert. A hook that exits clean on everything looks identical to one that works.
 3. **Create implementation checklist** from acceptance criteria.
 
 ### During implementation
@@ -194,7 +212,7 @@ Before calling it done, run every item. No exceptions.
 - **Acceptance criteria drift.** Implementing beyond scope. Stick to what was defined.
 - **Over-fixing bugs.** Refactoring unrelated code during a bug fix. Pragmatic cleanup of what you're touching is fine.
 - **Documentation lag.** Not updating docs with code. Document as you go.
-- **Test coverage gaming.** Writing useless tests for coverage. Focus on meaningful tests.
+- **Test coverage gaming.** Writing useless tests for coverage. Every test meets the four conditions above, or it isn't one.
 - **AI attribution in commits.** Commit messages describe what changed and why, not who or what wrote the code. No co-author lines. Attribution adds noise and ages poorly.
 
 ---

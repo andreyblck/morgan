@@ -255,6 +255,14 @@ For pre-1.0 releases (`0.X.Y`), treat any breaking change as a minor bump and an
 - Markdown formatting: prettier (`.prettierrc` in repo root).
 - Markdown linting: markdownlint (`.markdownlint.json`).
 - Run before push: `prettier --write '**/*.md'` and `markdownlint '**/*.md' --ignore node_modules`.
+- Resolve every command reference before push — a rename leaves live pointers behind, and a dead one only shows up when a user follows it. From the repo root:
+
+  ```bash
+  grep -rhoE '`/[a-z][a-z-]+`' plugin --include='*.md' | tr -d '`/' | sort -u \
+    | while read c; do [ "$c" = morgan ] || [ -f "plugin/commands/$c.md" ] || echo "DANGLING: /$c"; done
+  ```
+
+  `/morgan` is the skill, not a command — hence the exclusion. Check the root docs by eye; they name Claude Code built-ins the plugin doesn't own.
 - Originality gate: see CLAUDE.md.
 
 ---
@@ -276,7 +284,7 @@ claude plugin install morgan@morgan
 # on the next slash-command invocation — no reinstall needed.
 ```
 
-For end-to-end testing, use a dedicated sandbox dir (not the morgan repo itself, not your daily project). Run a full cycle: `/morgan:map → /morgan:case → /morgan:pull → /morgan:clean → /morgan:camp`. Verify artefacts land in `.camp/` of the sandbox. Restart the Claude Code session if commands don't appear in autocomplete after install.
+For end-to-end testing, use a dedicated sandbox dir (not the morgan repo itself, not your daily project). Run a full cycle: `/morgan:scope → /morgan:case → /morgan:pull → /morgan:clean → /morgan:camp`. Verify artefacts land in `.camp/` of the sandbox. Restart the Claude Code session if commands don't appear in autocomplete after install.
 
 ---
 

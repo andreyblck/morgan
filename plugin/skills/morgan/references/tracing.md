@@ -15,7 +15,7 @@ Find the root cause, not just the symptom. Fix it once, prevent it forever.
 ## Core principles
 
 ### Can't fix what you can't reproduce
-Don't touch the code until you can reliably trigger the issue. Follow reproduction steps exactly. Note any variations.
+Don't touch the code until you can trigger the issue on demand — as a command you've run, not steps you've read. Follow the reproduction exactly, note the variations, and get that command working before you build a theory. For an intermittent failure, chase a higher failure rate rather than a clean repeat; a bug that fails one run in two is workable, one in a hundred isn't.
 
 ### Root cause over symptoms
 A fix without understanding is a band-aid that will fail again. Understand WHY the failure occurs, not just WHERE.
@@ -89,7 +89,7 @@ Every bug report must enable anyone to reproduce and understand without addition
 7. **Determine next steps:**
    - Clear and fixable → assign to sprint.
    - Needs investigation → create spike.
-   - Cannot reproduce → request more info.
+   - Cannot reproduce → chase a failure rate first; still nothing, ask for access, a capture, or instrumentation.
    - Not a bug → close with explanation.
    - Feature request → convert to story.
 8. **Update status** and document triage notes.
@@ -100,15 +100,17 @@ Every bug report must enable anyone to reproduce and understand without addition
 
 Naming a cause is the start, not the end. A diagnosis is finished when the cause is *proven* — not when you've reached the bottom of a list.
 
-1. **Trace the code path** from reproduction steps.
-2. **Identify the exact failure point.**
-3. **Understand WHY** — not just where.
-4. **Check recent changes** — is this a regression?
-5. **Prove the cause.** Demonstrate it produces the symptom — toggle it and watch the symptom follow. A cause you can't reproduce on demand is still a theory.
-6. **Rule out the competitors.** Name at least one alternative explanation and kill it with evidence. The first plausible cause is a suspect, not a verdict.
-7. **Account for everything.** The cause explains every symptom and the whole timeline, not just the convenient ones. One unexplained symptom means keep digging.
-8. **State your confidence** — Confirmed / Strong theory / Working theory / Inconclusive. Only *Confirmed*, where the evidence directly proves the cause, earns a fix. Anything less, keep going.
-9. **Document clearly** — future fixers need context.
+1. **Reduce the case.** Cut one element at a time from the failing scenario — an input, a caller, a flag, a step — re-running after each cut. Stop when removing anything left turns it green. Everything still standing is a suspect worth your time; everything you cut was never part of the bug.
+2. **Trace the code path** from the reduced case.
+3. **Identify the exact failure point.**
+4. **Line up the candidates.** Name three to five possible causes before testing any one of them, each written as a prediction that could be proven wrong. Testing the first idea you had is how you end up defending it.
+5. **Understand WHY** — not just where.
+6. **Check recent changes** — is this a regression?
+7. **Prove the cause.** Demonstrate it produces the symptom — toggle it and watch the symptom follow. A cause you can't reproduce on demand is still a theory.
+8. **Rule out the competitors.** Kill the candidates from step 4 with evidence, not with preference. The first plausible cause is a suspect, not a verdict.
+9. **Account for everything.** The cause explains every symptom and the whole timeline, not just the convenient ones. One unexplained symptom means keep digging.
+10. **State your confidence** — Confirmed / Strong theory / Working theory / Inconclusive. Only *Confirmed*, where the evidence directly proves the cause, earns a fix. Anything less, keep going.
+11. **Document clearly** — future fixers need context.
 
 ---
 
@@ -116,7 +118,7 @@ Naming a cause is the start, not the end. A diagnosis is finished when the cause
 
 1. **Verify reproduction.** Follow steps exactly.
 2. **Confirm root cause.** Clear all four conditions of the certainty gate: it reproduces (run the toggle, don't imagine it), it accounts for every symptom and the timeline, every competing theory is ruled out with evidence, confidence is *Confirmed*. A named cause is not a proven one — don't fix until all four hold.
-3. **Write failing test** that reproduces the bug.
+3. **Write failing test** that reproduces the bug, at a seam that runs it the way it actually happened. Watch it fail before you fix anything. If no seam runs the real path, that's a finding about the structure — record it, fix the bug, raise it afterwards.
 4. **Implement minimal fix** — fix the bug, nothing more.
 5. **Verify fix:**
    - Test passes.

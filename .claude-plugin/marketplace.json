@@ -12,7 +12,7 @@
     {
       "name": "morgan",
       "description": "Engineering discipline for Claude Code: 1 skill, 7 agents, 11 commands. Plan the job, case the joint, pull it clean.",
-      "version": "0.1.12",
+      "version": "0.1.14",
       "author": {
         "name": "Andrey Black",
         "email": "a.creatuse@gmail.com"

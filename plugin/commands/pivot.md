@@ -214,7 +214,7 @@ Changing approach without documenting why leaves future contributors confused. O
 
 If the change asks to modify an invariant — something the formula said must always be true — slow down. Surface it.
 
-> "This audible would change an invariant: [old] → [new]. Confirm explicitly that you want to relax this constraint."
+> "This pivot would change an invariant: [old] → [new]. Confirm explicitly that you want to relax this constraint."
 
 Make the user say it. Invariants are absolute by definition; relaxing one is a deliberate decision, not a casual edit.
 

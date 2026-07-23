@@ -124,14 +124,20 @@ Group related work into outcome-oriented slices.
 
 Break features into executable pieces.
 
+Cut across the layers, not along one. A work item runs one narrow path through the system and works when it's finished — someone can exercise it end to end. An item shaped like a layer ("add the types", "build the schema", "wire the UI") finishes with nothing working, so nothing gets verified until the last one lands and every integration problem shows up at once. Layers order the build *inside* a slice; they're not how you cut items. See the shape rule in the `breakdown` reference.
+
 **A work item needs:**
 - **Acceptance criteria** — specific, testable conditions.
+- **What works when it's done** — one line naming what a caller can do that they couldn't before. If the honest answer is "nothing yet, the next item needs it," recut.
 - **Implementation guidance** — approach, patterns to follow, code examples.
 - **Test approach** — how to verify (unit, integration, manual).
-- **Complexity** — points (1, 2, 3, 5, 8 — split anything larger).
+- **Complexity** — points (1, 2, 3, 5, 8 — split anything larger, across the path rather than into its layers).
 - **Dependencies** — what must exist first.
 
+Subtasks are the exception — a migration, a dependency upgrade, a build fix genuinely leaves nothing user-visible. Fine on its own; not fine as the shape of the whole plan.
+
 **Quality check each work item:**
+- [ ] Can I name what works when this is done?
 - [ ] Can I explain what "done" looks like?
 - [ ] Do I know the approach (not every line, but the shape)?
 - [ ] Are there existing patterns to follow?
@@ -155,11 +161,11 @@ Spikes go first in the sequence. Don't build on assumptions.
 Order matters. Wrong sequence creates blockers and wasted work.
 
 **Principles:**
-1. **Think in layers** — Environment → structure → implementation → refinement. Each layer creates the conditions for the next to be verifiable.
-2. **Dependencies first** — what unblocks the most?
+1. **Value early** — order the slices so something usable exists as soon as possible. Not "when possible" — first.
+2. **Dependencies first** — what unblocks the most, given each item still stands up on its own?
 3. **Risk early** — uncertain things while there's time to adapt.
-4. **Value early** — deliver usable increments when possible.
-5. **Learn early** — spikes before building on assumptions.
+4. **Learn early** — spikes before building on assumptions.
+5. **Layers order the build inside a slice** — environment first and once (build, lint, type check, tests), then structure → implementation → refinement within each path. Not a way to cut items.
 
 **Watch for:**
 - Circular dependencies (break the cycle).
@@ -206,6 +212,7 @@ When complete, you should have:
 
 **For each work item:**
 - Acceptance criteria.
+- What works when it's done.
 - Implementation guidance.
 - Test approach.
 - Complexity points.
@@ -252,6 +259,7 @@ Save to `.camp/case.md` by default. The breakdown is what `/pull` executes again
 - **Calendar dates instead of exit criteria.** "Due Friday" tells nothing. "All acceptance criteria met" is done.
 - **Vague acceptance criteria.** "Auth works" vs "User can log in with email/password; invalid credentials return 401."
 - **8+ point work items.** Too big to hold in your head. Split.
+- **Layer-shaped work items.** "Add all the types," "build the schema," "wire the UI" — each passes every check above and leaves nothing working. Nothing is verified until the last one lands.
 - **No scope boundaries.** Not defining OUT invites creep.
 - **Skipping spikes.** Building on assumptions is how you pivot late.
 - **Work items without patterns.** No reference to existing code = guesswork during implementation.

@@ -180,10 +180,10 @@ Principles are how you think. These are what you actually do — every session, 
 
 ### When debugging
 
-- **Reproduce first.** Can't fix what you can't trigger. Follow the steps exactly.
+- **Reproduce first — as a command.** Not "I followed the steps." Something you ran, whose output you can show. Then cut the case down to what's load-bearing before you theorise about it.
 - **Trace to root.** Understand WHY. A fix without root cause comes back next month.
 - **Don't accept the first cause.** The obvious explanation is usually a suspect, not a verdict. Prove it: reproduce it on demand, rule out at least one competing theory, account for every symptom. State your confidence — only *Confirmed* earns a fix. A named cause is not a proven one, and an unproven cause carried into a fix is the bug coming back later.
-- **Failing test first, then minimal fix.** Write the test that reproduces it. Fix only the bug.
+- **Failing test first, then minimal fix.** Write the test that reproduces it, watch it fail, then fix only the bug.
 - **Watch for the pattern.** Multiple related bugs usually mean a systemic problem. Look beyond the single fix.
 
 ### When things break in production

@@ -66,7 +66,19 @@ Executable pieces of work.
 
 **Contains:** acceptance criteria, implementation guidance, test approach.
 
-**Sized by:** complexity points, not time. If it's too big, split it.
+**Sized by:** complexity points, not time. If it's too big, split it — across the path, not into its layers.
+
+### Shape: cut across the layers, not along one
+
+A work item runs one narrow path through the whole system and works when it's finished. Someone can exercise it end to end, however small the slice.
+
+An item shaped like a layer — "add the types", "build the schema", "wire up the components", "set up the job runner" — is finished when nothing works yet. Stack a few of those and nothing is verifiable until the last one lands, every integration problem arrives at once and late, and the thing you learn from running real work through the system arrives after you've committed to the design.
+
+Layer thinking still holds. It tells you what has to exist inside a path, and in what order within that path. It doesn't tell you where to cut items.
+
+The test on any item: when this is done, what can someone actually do that they couldn't before? If the honest answer is "nothing yet, but the next one needs it," the cut is wrong — put the narrow end-to-end path in one item and let it carry the slice of schema, contract and interface it needs.
+
+Some work genuinely has none of this shape — a migration, a dependency upgrade, a build fix. That's a subtask, and subtasks are allowed to leave nothing user-visible. What isn't allowed is a whole plan made of them.
 
 ### Creating work items
 
@@ -148,6 +160,8 @@ Estimate complexity, not time. Time varies; complexity is inherent to the work.
 - You'd need to context-switch within the work.
 - Risk is concentrated — one failure tanks everything.
 
+**Split along the path, not down through it.** Two narrower capabilities, each working on its own, beats a schema item plus an API item plus a UI item. If a slice can't be made narrower without ceasing to work, it's the right size even at high points.
+
 **Don't over-split:**
 - Splitting adds overhead (context, handoffs, integration).
 - Some things are genuinely complex and need to stay together.
@@ -169,14 +183,16 @@ Order matters. Wrong sequence creates blockers, wasted work, integration pain.
 
 **Learn early.** If a spike might change the approach, run it before building on assumptions.
 
-**Think in layers.** Work naturally falls into layers, and each layer creates conditions for the next to be verifiable. Environment (config, tooling, quality gates) → structure (types, schemas, interfaces) → implementation (code, content, assets) → refinement (optimization, polish). You can't verify code without a build system. You can't catch mistakes without quality tooling. You can't implement without types. You can't refine what doesn't exist. Sequence accordingly.
+**Layers order the work inside a path, not the items themselves.** Environment (config, tooling, quality gates) → structure (types, schemas, interfaces) → implementation (code, content, assets) → refinement (optimization, polish). You can't verify code without a build system, can't implement without types, can't refine what doesn't exist — so within a slice, that's the order you build in. What the layers don't license is a plan whose items *are* the layers. See the shape rule above: an item carries the slice of each layer it needs, and works when it's done.
+
+Environment is the one real exception. Quality tooling and a working build come before the first slice, because nothing after them is verifiable without them — that's foundation, not a layer-shaped item.
 
 **Sequence for flow:**
-1. What layer does this work live in? (Environment → Structure → Implementation → Refinement)
-2. What must exist before anything else? (Foundation)
+1. What must exist before anything else? (Foundation — build and quality tooling, once)
+2. Which path delivers something usable soonest? (Incremental delivery)
 3. What reduces the most uncertainty? (Risk / Learning)
 4. What unblocks the most other work? (Critical path)
-5. What delivers usable value soonest? (Incremental delivery)
+5. Within the chosen slice, what order do the layers demand? (Structure → implementation → refinement)
 
 **Watch for:**
 - Circular dependencies (A needs B needs A) — break the cycle.
@@ -210,6 +226,7 @@ Run multiple focused passes. Each catches different issues.
 - **Work items without patterns.** No reference to existing code = guesswork during implementation.
 - **Spike without decision.** Research that doesn't inform a real decision is waste.
 - **Oversized work items.** If you can't hold it in your head, split it.
+- **Layer-shaped work items.** "Add the types," "build the schema," "wire the UI" — each one finishes with nothing working, so nothing is verified until the last one lands. Cut across the path instead.
 
 ---
 
@@ -228,6 +245,7 @@ Run multiple focused passes. Each catches different issues.
 - [ ] Complexity estimated.
 
 **Work items**
+- [ ] Something works when this item is done — name what a caller can do that they couldn't before.
 - [ ] Acceptance criteria specific and testable.
 - [ ] Happy path, errors, edge cases covered.
 - [ ] Implementation guidance with code examples.
