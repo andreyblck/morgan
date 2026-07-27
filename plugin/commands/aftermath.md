@@ -143,15 +143,7 @@ Naming a cause isn't proving one. Before this drives action items, clear `/track
 
 ### 3. Five Whys
 
-Keep asking why until you hit the systemic issue:
-
-1. Why did the deployment fail? → Config was wrong.
-2. Why was config wrong? → Manual edit, typo.
-3. Why manual edit? → No automated config management.
-4. Why no automation? → Never prioritized.
-5. Why never prioritized? → No incident had forced it.
-
-The fix isn't "be more careful" — it's "automate config management."
+Keep asking why until you hit the systemic issue. The worked example is in the `incident` reference you've already loaded.
 
 Hitting the systemic issue isn't the same as proving it. Run the cause through the certainty gate before you write it down: it reproduces, it explains the whole timeline, competing causes are ruled out, confidence is Confirmed. Won't clear? It's a working theory — say so in the postmortem. Don't persist a guess as the root cause.
 
