@@ -18,12 +18,12 @@ $$ | \_/ $$ | $$$$$$  |$$ |  $$ |\$$$$$$  |$$ |  $$ |$$ | \$$ |
 **Engineering discipline for Claude Code.**
 *Plan the job. Pull it clean. Walk away with what you came for.*
 
-![Version](https://img.shields.io/badge/version-0.1.12-1f6feb)
+![Version](https://img.shields.io/badge/version-0.1.17-1f6feb)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6)
 ![Status](https://img.shields.io/badge/status-alpha-f59e0b)
 ![Skill](https://img.shields.io/badge/skill-1-22c55e)
-![Commands](https://img.shields.io/badge/commands-11-22c55e)
+![Commands](https://img.shields.io/badge/commands-12-22c55e)
 ![Agents](https://img.shields.io/badge/agents-7-22c55e)
 ![References](https://img.shields.io/badge/references-13-22c55e)
 
@@ -35,7 +35,7 @@ $$ | \_/ $$ | $$$$$$  |$$ |  $$ |\$$$$$$  |$$ |  $$ |$$ | \$$ |
 
 A Claude Code plugin that bolts a **process layer** onto your day-to-day work. It puts an engineer with a code at your shoulder — one who insists you understand the problem before solving it, decompose by what *done* actually means, and tell the truth about where the work stands.
 
-You get a five-step **cycle** for normal work, seven **branches** for when reality interrupts (research, debugging, incidents, pivots, UI verification, resuming parked work, auditing a stale board), seven **specialist agents** with distinct roles, and thirteen **reference docs** of distilled engineering practice the skill loads as needed.
+You get a five-step **cycle** for normal work, seven **branches** for when reality interrupts (research, debugging, incidents, pivots, UI verification, resuming parked work, auditing a stale board), seven **specialist agents** with distinct roles, and thirteen **reference docs** of distilled engineering practice — each command reads the ones it runs on, before it starts.
 
 The lead persona is **Arthur Morgan** — disciplined, plainspoken, honest about what he sees, won't be pushed past his principles. Says *"I don't know"* before he'll guess.
 
@@ -64,6 +64,30 @@ Restart any active Claude Code session so the commands appear in autocomplete. T
 Loads the skill, prints the banner, glances at git state, surfaces patterns from past `/aftermath` runs, proposes a next action.
 
 > Use the `claude plugin` **CLI** from your shell — not the in-session `/plugin` manager; it's a UI, and your arguments don't reach it cleanly.
+
+---
+
+## Updating
+
+Installing pins the version you installed. Refresh the marketplace first, then the plugin — the first step alone won't move you:
+
+```bash
+claude plugin marketplace update morgan
+claude plugin update morgan@morgan
+claude plugin list          # confirm the version moved
+```
+
+**Restart any running Claude Code session.** Until you do, the old copy stays loaded and you'll see no change.
+
+### If you're coming from 0.1.16 or earlier
+
+`0.1.17` changed *when* morgan reads its own methodology, and you'll notice:
+
+- **A lighter session start.** The three references that used to load before any work — 28,560 characters of them — no longer do. Each command now reads what it runs on, when it runs.
+- **Commands that actually load their method.** Before 0.1.17 the references named in a command never got read at all; the instruction was there and was ignored. Now `/scope` reads the scoping method, `/pull` reads the building method, and so on.
+- **A larger bill on a full cycle.** That follows from the previous point: an agent holding the method does more work, and output tokens are what you pay for. Reading costs almost nothing by comparison — measured over nine sessions, cutting 19,000 characters of reference moved the bill by $0.10, inside the noise between identical runs.
+
+Nothing in your `.camp/` changes, no command was renamed, and no artefact format moved. If you've overridden `references/project-context.md` in your own repo, that override still applies.
 
 ---
 
