@@ -18,7 +18,12 @@ Plans change. Requirements shift. You learned something that changes everything.
 
 ## Load skill
 
-Load the `morgan` skill first. Then read its `pivoting`, `scoping`, `breakdown`, and `verification` references.
+Before you do anything else, in this order:
+
+1. Load the `morgan` skill.
+2. Read `references/pivoting.md`. That's the method this command runs on — you can't execute the process below without it. Read it now even if you loaded the skill or other references earlier in this session: each command runs on its own, and what's already in context is not this.
+
+Don't start the work until it's read.
 
 ---
 

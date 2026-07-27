@@ -16,7 +16,7 @@ When a user runs `claude /plugin install morgan@morgan`, Claude Code:
 
 When the user types `/<command-name>`, Claude Code resolves `plugin/commands/<command-name>.md`. The frontmatter sets the command's metadata; the body is the prompt that runs.
 
-When a command says "Load the `morgan` skill," Claude Code loads `plugin/skills/morgan/SKILL.md` and follows its instructions to read the listed references.
+When a command says "Load the `morgan` skill," Claude Code loads `plugin/skills/morgan/SKILL.md`. The references a command needs are named in its own Load line, not in the skill — 0.1.17 measured that an instruction in `SKILL.md` and one in the command file compete, and the skill's won every time, so the command's own method never arrived. The Load line's shape is load-bearing: numbered steps, full paths, a reason the process can't run without them, and an explicit note that earlier reads in the session don't count.
 
 When a command or skill says to delegate to "Charles" or another agent, Claude Code uses `plugin/agents/<name>.md` to spin up a sub-agent with that persona, those tools, and that body as system prompt.
 
@@ -47,7 +47,12 @@ argument-hint: "<placeholder for $ARGUMENTS>"
 
 ## Load skill
 
-Load the `morgan` skill first. Then read `references/<topic>.md`. <Optional: more references.>
+Before you do anything else, in this order:
+
+1. Load the `morgan` skill.
+2. Read `references/<topic>.md`. That's the method this command runs on — you can't execute the process below without it. Read it now even if you loaded the skill or other references earlier in this session: each command runs on its own, and what's already in context is not this.
+
+Don't start the work until it's read.
 
 ---
 
@@ -154,7 +159,7 @@ You're <Agent>. You work with Arthur.
 ```markdown
 # <Topic>
 
-<One-line summary. Optionally: "Loaded by `/<command>`" or "Always loaded.">
+<One-line summary, naming what loads it: "Loaded by `/<command>`.">
 
 ---
 
@@ -184,13 +189,11 @@ You're <Agent>. You work with Arthur.
 1. **Pick a name.** Verb-first, lowercase. Run the collision check (see CLAUDE.md). Don't shadow Claude Code built-ins.
 2. **Decide the workflow.** What's the input? What does the command produce? Where is output persisted? Which references should it load?
 3. **Write `plugin/commands/<name>.md`.** Use the anatomy above as the template.
-4. **Update `plugin/skills/morgan/SKILL.md`:**
-   - Add a row to the Commands table.
-   - If the command has its own reference, add a row to the References table.
-   - If a new reference is needed, also add it to the trigger list.
-5. **Update `README.md`** if the command surface changes.
-6. **Smoke test:** in a sandbox dir, install the local marketplace, run the new command, verify it produces what you expected.
-7. **Bump version** in both manifests.
+4. **Update `plugin/skills/morgan/SKILL.md`:** add a row to the Commands table. Don't add the command's reference to the References table there — that table is only for references answering to no single command.
+5. **Run `./scripts/check-load-lines.sh`** and lower its baseline if the new command's references are cited in its body.
+6. **Update `README.md`** if the command surface changes.
+7. **Smoke test:** in a sandbox dir, install the local marketplace, run the new command, verify it produces what you expected — and grep the transcript to confirm the Load line actually fired.
+8. **Bump version** in both manifests.
 
 ---
 
@@ -210,9 +213,9 @@ You're <Agent>. You work with Arthur.
 ## Adding or refining a reference
 
 1. **Pick a topic.** Discipline-shaped (planning, debugging, etc.) or domain-shaped (frontend-design, project-context).
-2. **Decide the trigger.** Always-loaded? Loaded by a specific command? Triggered by content keywords?
+2. **Decide which command loads it.** There is no always-loaded tier — it was removed in 0.1.17 because it crowded out the reference the running command actually needed. A reference earns its place in one command's Load line, or it's reachable on demand via `SKILL.md`'s table. Naming it in a Load line means every invocation of that command pays for it.
 3. **Write `plugin/skills/morgan/references/<topic>.md`** using the anatomy above.
-4. **Update `SKILL.md`:** add to the references table; add to the trigger list.
+4. **Update `SKILL.md`** only if the reference answers to no single command — those are the ones listed in its References table.
 5. **Update commands** that should now load this reference.
 6. **Smoke test:** invoke a command that should load it, verify it loads.
 

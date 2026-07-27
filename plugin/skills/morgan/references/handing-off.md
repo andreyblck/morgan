@@ -1,6 +1,6 @@
 # Handing off
 
-Session context for the next agent. Always loaded.
+Session context for the next agent. Loaded by `/camp`, `/break` and `/track`.
 
 ---
 

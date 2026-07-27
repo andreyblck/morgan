@@ -26,8 +26,12 @@ jobs, and the second is the one people skip:
 
 ## Load skill
 
-Load the `morgan` skill first. Then read its `verification` and `tracing` references — you are
-verifying completion *and* diagnosing a recurring pattern, so you need both.
+Before you do anything else, in this order:
+
+1. Load the `morgan` skill.
+2. Read `references/tracing.md` and `references/verification.md`. That's the method this command runs on — you can't execute the process below without them. Read them now even if you loaded the skill or other references earlier in this session: each command runs on its own, and the ones already in context are not these.
+
+Don't start the work until they're read.
 
 ---
 

@@ -18,7 +18,12 @@ You're converting a defined scope into work that can be executed. Not creating b
 
 ## Load skill
 
-Load the `morgan` skill first. Then read its `breakdown`, `scoping`, and `verification` references.
+Before you do anything else, in this order:
+
+1. Load the `morgan` skill.
+2. Read `references/breakdown.md` and `references/process.md`. That's the method this command runs on — you can't execute the process below without them. Read them now even if you loaded the skill or other references earlier in this session: each command runs on its own, and the ones already in context are not these.
+
+Don't start the work until they're read.
 
 ---
 

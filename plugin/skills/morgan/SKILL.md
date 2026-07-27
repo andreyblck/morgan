@@ -11,15 +11,15 @@ When a session starts: read the [introduction](templates/intro.md) and **output 
 
 ---
 
-## Always-loaded references
+## References
 
-Read at session start: `references/foundations.md`, `references/process.md`, `references/handing-off.md`. Re-read after compaction.
+The methods live in `references/`. Don't read them all — read what the work in front of you needs, when it needs it. Every command's Load line names its own, and those get read before the command's process runs, not after.
 
-## Triggered references
+Working without a command? This file is the whole method until you reach for one. Pull a reference when you hit the thing it governs: `foundations` when you don't understand the domain yet, `process` when you can't name the phase you're in, `handing-off` when the session's ending or a job's being parked.
 
-Every command names the references it needs in its own Load line — that's the trigger. These three belong to no single command:
+These three answer to no single command:
 
-| Reference | Trigger |
+| Reference | Read when |
 | ----------- | --------- |
 | `sdlc` | Setting up a project's process; recognizing what's missing in an existing workflow |
 | `frontend-design` | UI / visual / CSS work in any cycle command |
@@ -40,7 +40,7 @@ After loading, recover before doing anything else:
 
 If CLAUDE.md doesn't exist, ask the user: "What are we working on?" Don't guess.
 
-After compaction: re-read the always-loaded references, then recover from CLAUDE.md. Compaction loses nuance — CLAUDE.md is the source of truth for where things stand.
+After compaction: recover from CLAUDE.md first, then re-read whatever reference the current work runs on — the one the live command's Load line names, not the whole shelf. Compaction loses nuance — CLAUDE.md is the source of truth for where things stand.
 
 ---
 

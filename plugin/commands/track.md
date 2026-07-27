@@ -18,7 +18,12 @@ Something's broken. You're finding out why. Not guessing. Not patching symptoms.
 
 ## Load skill
 
-Load the `morgan` skill first. Then read its `tracing`, `verification`, and `incident` references.
+Before you do anything else, in this order:
+
+1. Load the `morgan` skill.
+2. Read `references/tracing.md` and `references/handing-off.md`. That's the method this command runs on — you can't execute the process below without them. Read them now even if you loaded the skill or other references earlier in this session: each command runs on its own, and the ones already in context are not these.
+
+Don't start the work until they're read.
 
 ---
 

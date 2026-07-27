@@ -18,7 +18,13 @@ You're defining what to build before building it. Challenge assumptions, scope p
 
 ## Load skill
 
-Load the `morgan` skill first. Then read its `scoping` and `breakdown` references. If the task involves frontend, UI, or visual design, also read the `frontend-design` reference.
+Before you do anything else, in this order:
+
+1. Load the `morgan` skill.
+2. Read `references/scoping.md` and `references/foundations.md`. That's the method this command runs on — you can't execute the process below without them. Read them now even if you loaded the skill or other references earlier in this session: each command runs on its own, and the ones already in context are not these.
+3. If the work touches frontend, UI, or visual design, also read `references/frontend-design.md`.
+
+Don't start the work until they're read.
 
 ---
 

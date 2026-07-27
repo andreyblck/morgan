@@ -1,6 +1,6 @@
 # Foundations
 
-The thinking everything else stands on.
+The thinking everything else stands on. Loaded by `/scope`; read it any time the domain isn't clear yet.
 
 ---
 

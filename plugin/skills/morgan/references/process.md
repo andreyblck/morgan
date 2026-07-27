@@ -1,6 +1,6 @@
 # Process
 
-Intuition over ceremony. Always loaded.
+Intuition over ceremony. Loaded by `/case`; read it any time you can't name the phase you're in.
 
 ---
 

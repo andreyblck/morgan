@@ -25,7 +25,7 @@
 
 set -u
 
-BASELINE=24
+BASELINE=11
 
 fail=0
 uncited=0
