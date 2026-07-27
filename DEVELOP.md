@@ -263,6 +263,11 @@ For pre-1.0 releases (`0.X.Y`), treat any breaking change as a minor bump and an
   ```
 
   `/morgan` is the skill, not a command — hence the exclusion. Check the root docs by eye; they name Claude Code built-ins the plugin doesn't own.
+- Keep load lines tied to demonstrated use — run `./scripts/check-load-lines.sh` before push. That check resolves reference pointers the same way the one above resolves command pointers, and adds a ratchet.
+
+  A reference named in a `## Load skill` line is a whole-file read paid on every invocation of that command. Load lines only ever grow, because nothing stops a reference being added "for completeness" to a command that never acts on it — that's how `/pivot` came to load four references and name one. The rule: **a reference belongs in a load line only if the command body names the decision it governs.**
+
+  That rule can't be checked mechanically, so the script checks a weaker proxy — does the body cite the reference *as* a reference, in backticks or by path, outside the Load section — and gates on the count not rising. A command can act on a reference without naming it (`/track` loads `tracing` and its whole procedure *is* the tracing method), so an uncited pair is a question, not a verdict. Lower the baseline when a trim lands; never raise it to make a push go through.
 - Originality gate: see CLAUDE.md.
 
 ---
