@@ -12,7 +12,7 @@ $$ | \_/ $$ | $$$$$$  |$$ |  $$ |\$$$$$$  |$$ |  $$ |$$ | \$$ |
 ```
 
 engineering discipline for Claude Code
-0.1.12 · 1 skill · 11 commands · 7 agents · 13 references
+0.1.15 · 1 skill · 12 commands · 7 agents · 13 references
 
 *  *  *
 
@@ -40,6 +40,7 @@ When the cycle isn't enough — the branches:
   /pivot      The plan needs to change mid-work — controlled scope change
   /qa         The work touched UI — browser smoke check
   /break      You're picking up parked work — resume from its in-flight log
+  /board      The tracker says everything's in flight — audit it against prod, close what's proven
 
 The crew (call them when the work calls for them):
   Charles     Reads the land. Default for research and review.

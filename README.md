@@ -35,7 +35,7 @@ $$ | \_/ $$ | $$$$$$  |$$ |  $$ |\$$$$$$  |$$ |  $$ |$$ | \$$ |
 
 A Claude Code plugin that bolts a **process layer** onto your day-to-day work. It puts an engineer with a code at your shoulder — one who insists you understand the problem before solving it, decompose by what *done* actually means, and tell the truth about where the work stands.
 
-You get a five-step **cycle** for normal work, six **branches** for when reality interrupts (research, debugging, incidents, pivots, UI verification, resuming parked work), seven **specialist agents** with distinct roles, and thirteen **reference docs** of distilled engineering practice the skill loads as needed.
+You get a five-step **cycle** for normal work, seven **branches** for when reality interrupts (research, debugging, incidents, pivots, UI verification, resuming parked work, auditing a stale board), seven **specialist agents** with distinct roles, and thirteen **reference docs** of distilled engineering practice the skill loads as needed.
 
 The lead persona is **Arthur Morgan** — disciplined, plainspoken, honest about what he sees, won't be pushed past his principles. Says *"I don't know"* before he'll guess.
 
@@ -69,7 +69,7 @@ Loads the skill, prints the banner, glances at git state, surfaces patterns from
 
 ## Commands
 
-You drive morgan with slash commands. A **cycle** of five for normal work, six **branches** for when reality interrupts. The commands route to the agents and references for you — you rarely call those directly.
+You drive morgan with slash commands. A **cycle** of five for normal work, seven **branches** for when reality interrupts. The commands route to the agents and references for you — you rarely call those directly.
 
 ### The cycle
 
@@ -96,6 +96,7 @@ You drive morgan with slash commands. A **cycle** of five for normal work, six *
 | `/pivot` | The plan needs to change mid-work — controlled scope change |
 | `/qa` | The work touched UI — browser smoke check via Playwright |
 | `/break` | You're picking up parked work — resume from its in-flight log |
+| `/board` | The tracker says everything's in flight — audit it against prod, close what's proven |
 
 Branches don't replace the cycle — they feed into it:
 
@@ -107,6 +108,7 @@ Research first  /scout ─▶ /scope ─▶ /case ─▶ /pull ─▶ /clean ─
 Plan changed    /pivot ─▶ /case ─▶ /pull ─▶ /clean ─▶ /camp
 UI work         /scope ─▶ /case ─▶ /pull ─▶ /qa ─▶ /clean ─▶ /camp
 Resume parked   /break ─▶ /track or /pull ─▶ /clean ─▶ /camp
+Stale board     /board ─▶ /scope the pipeline fix ─▶ /case ─▶ /pull ─▶ /camp
 ```
 
 ## The crew
@@ -117,12 +119,12 @@ When the work needs another lens, the commands route to seven specialist sub-age
 
 ## What it leaves behind
 
-Each command writes to `.camp/` in your repo — gitignored, survives across sessions. `/aftermath` also appends a three-to-four-line entry to `.camp/lessons.md`: cross-session memory the skill reads on every session start, surfacing a past pattern when the current work resembles one. A job paused mid-flight leaves an **in-flight working log** in `.camp/` — what was tried, what's ruled out, what's still open; `/break` (or the next session's recovery scan of `.camp/`) picks it back up from there. Add `.camp/` to your `.gitignore`; when something deserves a permanent home (`docs/`, ADRs, runbooks), you decide where it goes.
+Each command writes to `.camp/` in your repo — gitignored, survives across sessions. `/aftermath` also appends a three-to-four-line entry to `.camp/lessons.md`: cross-session memory the skill reads on every session start, surfacing a past pattern when the current work resembles one. A job paused mid-flight leaves an **in-flight working log** in `.camp/` — what was tried, what's ruled out, what's still open; `/break` (or the next session's recovery scan of `.camp/`) picks it back up from there. `/board` leaves a dated audit trail — ground truth, per-issue verdicts and ruled-out theories — so the next sweep starts where this one stopped instead of re-deriving it. Add `.camp/` to your `.gitignore`; when something deserves a permanent home (`docs/`, ADRs, runbooks), you decide where it goes.
 
 ## Make it yours
 
 - **Project rules.** Drop your repo's conventions and key file pointers into `<repo>/.claude/skills/morgan/references/project-context.md`. It overrides the plugin's stub and becomes local law; the plugin's general references stay general.
-- **MCP, optional.** `/scope` reads Linear tickets, `/track` pulls Sentry telemetry, `/qa` checks against Figma — each fails gracefully and proceeds if the server isn't connected.
+- **MCP, optional.** `/scope` reads Linear tickets, `/track` pulls Sentry telemetry, `/qa` checks against Figma, `/board` reads and writes issue status — each fails gracefully and proceeds if the server isn't connected.
 
 ## More
 
