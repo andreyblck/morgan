@@ -130,7 +130,7 @@ Issues live in \`board/<KEY>.md\`. Frontmatter fields:
 | Field | Meaning |
 |---|---|
 | \`key\` | issue key |
-| \`status\` | \`In Progress\`, \`In Review\`, \`Done\`, \`Backlog\` |
+| \`status\` | \`Backlog\`, \`Todo\` (ready to be worked), \`In Progress\`, \`In Review\`, \`Done\` |
 | \`assignee\` | who owns it. **You are \`dev\`.** |
 | \`branch\` | the branch carrying its code, or absent if none exists |
 | \`reviewer\` | who is reviewing, or absent if nobody has been assigned |
