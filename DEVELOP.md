@@ -189,11 +189,12 @@ You're <Agent>. You work with Arthur.
 1. **Pick a name.** Verb-first, lowercase. Run the collision check (see CLAUDE.md). Don't shadow Claude Code built-ins.
 2. **Decide the workflow.** What's the input? What does the command produce? Where is output persisted? Which references should it load?
 3. **Write `plugin/commands/<name>.md`.** Use the anatomy above as the template.
-4. **Update `plugin/skills/morgan/SKILL.md`:** add a row to the Commands table. Don't add the command's reference to the References table there — that table is only for references answering to no single command.
-5. **Run `./scripts/check-load-lines.sh`** and lower its baseline if the new command's references are cited in its body.
-6. **Update `README.md`** if the command surface changes.
-7. **Smoke test:** in a sandbox dir, install the local marketplace, run the new command, verify it produces what you expected — and grep the transcript to confirm the Load line actually fired.
-8. **Bump version** in both manifests.
+4. **Update `plugin/skills/morgan/SKILL.md`** — **two tables, not one.** Add a row to the Commands (or Branches) table *and* a row to `Sequence the cycle` saying where the command hands off. Miss the second and the agent finishes the command without knowing what follows. Don't add the command's reference to the References table there — that table is only for references answering to no single command.
+5. **Update `plugin/skills/morgan/templates/intro.md`** — the branches list, and the counts-and-version line at the top. That line is invisible to every check in this repo: it sat two releases stale before anyone noticed, because nothing compares it to the manifests.
+6. **Run `./scripts/check-load-lines.sh`** and lower its baseline if the new command's references are cited in its body.
+7. **Update `README.md`** — `commands-N` badge, the two "N branches" counts in prose, the branches table, the ASCII workflow diagram, the `.camp/` artefact paragraph if the command leaves one, and the MCP bullet if it talks to a tracker. Six or seven separate edits; "update the README" has been one vague clause covering all of them, which is how they get missed.
+8. **Smoke test:** in a sandbox dir, install the local marketplace, run the new command, verify it produces what you expected — and grep the transcript to confirm the Load line actually fired. `scripts/harness.sh` does this headlessly against a fixture and tells you whether the references were read or refused.
+9. **Bump version** in both manifests.
 
 ---
 

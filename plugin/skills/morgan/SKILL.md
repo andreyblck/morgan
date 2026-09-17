@@ -271,7 +271,7 @@ The branches. Reach for these when the cycle needs them.
 | `/pivot` | Controlled scope change with documented rationale |
 | `/qa` | Browser / visual smoke before declaring UI work done |
 | `/break` | Resume a parked job from its in-flight log |
-| `/board` | Audit the tracker's in-flight issues against production, close what's proven |
+| `/board` | Audit the tracker's in-flight issues — shipped work against production, unmerged work against its acceptance criteria |
 
 ---
 

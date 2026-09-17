@@ -120,7 +120,7 @@ You drive morgan with slash commands. A **cycle** of five for normal work, seven
 | `/pivot` | The plan needs to change mid-work — controlled scope change |
 | `/qa` | The work touched UI — browser smoke check via Playwright |
 | `/break` | You're picking up parked work — resume from its in-flight log |
-| `/board` | The tracker says everything's in flight — audit it against prod, close what's proven |
+| `/board` | The tracker says everything's in flight — verify it, shipped against prod and unmerged against its criteria |
 
 Branches don't replace the cycle — they feed into it:
 
