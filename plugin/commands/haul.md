@@ -175,9 +175,13 @@ The run has to end, and it has to end with a report even when it ends badly.
 
 ## 6. Push and deploy — only under preconditions, and the refusal is the feature
 
-Committing to a branch is always allowed. Pushing that branch, and deploying it anywhere, is
-allowed only when **every** precondition below is verifiable. **A precondition you cannot verify
-counts as failed** — there is nobody to ask.
+Committing to a branch is always allowed. Pushing and deploying are not, and they are two
+different questions with two different blast radiuses — a pushed branch sits on a remote where
+someone can read it, a deployed branch runs. **A precondition you cannot verify counts as
+failed**, because there is nobody to ask.
+
+**To push, 1, 2, 6 and 7 must hold.** **To deploy, all seven must.** Applying the deploy
+conditions to a push refuses work for reasons that don't apply to it.
 
 1. **The target isn't protected.** Via the host's API where there is one. Where there isn't:
    `main`, `master`, `trunk`, `release/*`, `staging`, `prod*`, and any branch named as a deploy
