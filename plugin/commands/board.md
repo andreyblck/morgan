@@ -1,6 +1,6 @@
 ---
 name: board
-description: Sweep the tracker board — audit every in-flight issue against production, close what's proven, give the rest an honest status.
+description: Sweep the tracker board — verify what shipped against production and what hasn't against its acceptance criteria, close what's proven, give the rest an honest status.
 argument-hint: "[assignee | statuses | issue keys]"
 ---
 
@@ -15,10 +15,13 @@ Read the ledger. Settle the accounts.
 Your board says thirty things are in flight. Most of them aren't. Some shipped weeks ago and
 nobody closed them; some never started; some are half-shipped and lying about it.
 
-This command settles each one against production and leaves the board telling the truth. Two
-jobs, and the second is the one people skip:
+This command settles each one — against production where the code shipped, against its
+acceptance criteria where it hasn't — and leaves the board telling the truth. Two jobs, and
+the second is the one people skip:
 
-1. **Clean the board** — close what's provably live, correct the status of what isn't.
+1. **Clean the board** — close what's provably live, and settle what isn't. Unmerged work
+   gets judged against what the ticket asked for, rather than waved through because
+   production can't see it yet.
 2. **Find out why it filled up** — a board that re-accumulates is a broken pipeline, not a
    messy desk. Cleaning it without fixing the cause means running this again next week.
 
@@ -61,6 +64,12 @@ closes on *observed production behaviour*, not on a merge.
 If you can't prove it, it isn't proven. Write "unverified" and move on — that is a respectable
 answer and a false Done is not.
 
+**This rule governs the On-prod class.** It says what earns a Done, and by its own terms it
+runs against work that already shipped. Code that hasn't shipped is judged against its
+acceptance criteria instead — that's the second lane in §2 and §3, and it doesn't earn a Done
+here either, verified or not. Two questions, two kinds of evidence, one terminal state that
+only production proof unlocks.
+
 ---
 
 ## 1. Establish ground truth once
@@ -86,7 +95,12 @@ gotchas are the cheapest evidence you will get all session, and re-walking them 
 ## 2. Classify in bulk before you verify anything
 
 Verification is expensive; classification is nearly free. Do the cheap pass on all of them first,
-because it removes most of the board from the expensive pass.
+because it sorts the board into the two lanes that cost something and the three that don't.
+
+The two lanes ask different questions, and neither answers the other's. **On prod** asks whether
+the change actually runs and the symptom is gone. **PR open** asks whether the code does what the
+ticket asked for — a question nobody gets to later, because the next command to touch that issue
+is this one, after the deploy, when it's too late to be cheap.
 
 For every issue, mechanically resolve: is there a branch, a PR, a commit? What did the PR merge
 into? Is a commit naming this issue an ancestor of the deployed revision?
@@ -96,9 +110,9 @@ Do not open thirty PRs one at a time.
 
 | Class | Meaning | What it needs |
 |---|---|---|
-| **On prod** | commit naming it is an ancestor of the deployed revision | expensive verification — this is your candidate set |
+| **On prod** | commit naming it is an ancestor of the deployed revision | expensive verification against production behaviour — candidate set one |
 | **Merged, not released** | landed on the integration branch only | status correction; note what it's waiting for |
-| **PR open** | code exists, unmerged | nothing is in production; status is probably already right |
+| **PR open** | code exists, unmerged | expensive verification against the acceptance criteria — candidate set two |
 | **No code** | no branch, no PR, no commit | either it never started, or the deliverable isn't code — find out which |
 | **Umbrella** | objective / epic / KR — not a shippable unit | judge against its own criteria, never against a commit |
 
@@ -120,7 +134,8 @@ Independent work — run them concurrently, don't serialise.
 
 Match the crew to the evidence you need:
 
-- **Charles** — the default. Code on the deployed revision, git and PR history, deploy status.
+- **Charles** — the default. Code on the deployed revision, git and PR history, deploy status —
+  and, for the PR-open lane, the unmerged diff read against the criteria it claims to satisfy.
 - **Tilly** — anything user-visible. A prod screenshot is the proof; she drives the browser.
 - **Hosea** — the refute pass, and any issue whose trail has gone cold.
 - **Sadie** — security tickets, where the question is whether the hole is actually closed.
@@ -137,10 +152,38 @@ rather than trust. They don't load this skill and they don't know the codebase.
 3. **Return a verdict per issue** — ready / not ready / blocked — with what specifically remains.
 4. **Name the one check that would prove the verdict wrong.**
 
-Then **run that falsifier.** Every "ready to close" verdict gets an adversarial second pass whose
-job is to refute it, not confirm it — default to refuted when it can't independently observe the
-behaviour. Send Hosea. Hunt specifically for: a flag that's off, a backfill never run, evidence
-that's structural only, a multi-part ticket that half-shipped, a symptom that still reproduces.
+**The PR-open lane's brief carries two more things.** Its evidence is a diff, not a running
+system, so the brief has to supply what a diff can't:
+
+- **The acceptance criteria verbatim, numbered as the ticket numbers them.** The verdict comes
+  back criterion by criterion — "satisfies 1, silent on 2" — naming the one that isn't met.
+  A ticket-level "looks right" is not something anyone can act on, and it hides exactly the
+  half-done fix this lane exists to catch. Classify findings on the Critical / Major / Minor
+  scale in the `verification` reference.
+- **The test standard, spelled out inline.** Sub-agents don't load references, so state it:
+  on core logic, a test whose expected value is computed the way the implementation computes
+  it, or one that asserts on the unit's private internals, or one that replaces a collaborator
+  inside the codebase, is a Major finding. Say what isn't: a committed snapshot or golden file
+  is not a finding unless it was updated alongside a behaviour change with no reason given, and
+  database seeding, persisted-row assertions and injected failures are ordinary setup. Whether
+  a test was seen failing is invisible in a diff — don't ask for it here.
+
+Then **run that falsifier.** Every verdict that would let an issue move forward gets an
+adversarial second pass whose job is to refute it, not confirm it — default to refuted when it
+can't independently observe the behaviour. Send Hosea. On the On-prod lane that verdict is
+"ready to close"; on the PR-open lane it's "satisfies its criteria", and refuting it is a
+different hunt:
+
+- **On prod** — a flag that's off, a backfill never run, evidence that's structural only, a
+  multi-part ticket that half-shipped, a symptom that still reproduces.
+- **PR open** — a criterion satisfied only in the commit message; a test that cannot fail, so
+  the green suite proves nothing; the symptom in the ticket still reproducing against the
+  branch; the change working on the branch tip but not against a current merge base.
+
+The test that cannot fail is the one that gets through. It is green, it is in the diff, and it
+reads like coverage. Run the suite against a deliberately broken version of the code it claims
+to cover — if it stays green, it never protected anything and the verdict resting on it is
+refuted.
 
 Validate what comes back. An agent asserting "verified on prod" with no command in its evidence
 has verified nothing.
@@ -160,6 +203,15 @@ to cut, and never the thing to cut *because you're in a hurry*.
   top-level or skip the comment rather than burying it in a synced thread.
 - **Shipped but unproven → leave it, and comment what proof is missing.** Precisely what, so the
   next pass can go get it.
+- **Verified against its criteria but not shipped → say so, and leave it in review.** The
+  PR-open lane's best outcome. Comment the verdict criterion by criterion with the evidence,
+  so the reviewer inherits the work instead of repeating it. **This never writes Done** —
+  verified against a diff is not observed in production, and the terminal state stays locked
+  behind the rule in the section above.
+- **Missing a criterion → back to the started column, naming the criterion.** Not "needs work".
+  The number and the sentence from the ticket, plus what the diff does instead. A PR sitting
+  in review that doesn't do what the ticket asked burns a reviewer's afternoon to reach the
+  same conclusion you already have in hand.
 - **Started with nothing behind it → back to the unstarted column.** An issue in progress with no
   branch, no PR and no commit is noise on the board and it distorts every cycle metric.
 - **Umbrella / objective → judge it against its own key results,** never against a merge. If the
@@ -208,6 +260,29 @@ Watch for the amplifier too: if the integration reopens an issue whenever a new 
 key, long-lived epics can never stay closed. An issue with dozens of transitions and several
 Done→started reversals is that mechanism leaving fingerprints.
 
+**That is one of two causes, and they have opposite shapes.** Everything above hunts a board
+filling with *spurious action* — automation writing a status nobody earned. A column full of
+open PRs is the other shape: *absent action*. Nothing wrote a wrong status; nothing wrote
+anything, because no one moved the work. Run the paragraphs above against a stalled In-Review
+column and you will find no automated transitions, no amplifier and no inflow — and conclude
+there is no systemic cause, which is the wrong answer arrived at honestly.
+
+So when the pile is in review rather than in Done, ask what stops a PR from moving, per PR, and
+answer it with checks you run:
+
+- **How old is it?** Open date to today. A median measured in weeks is the finding.
+- **Is there a reviewer at all?** An unassigned PR isn't waiting on review, it's waiting on
+  someone to notice. A cluster of these means routing is missing, not that reviewers are slow.
+- **Is its check suite green?** A PR red for weeks is nobody's queue — the author stopped and
+  the reviewer is waiting for a signal that will never come.
+- **Has it fallen behind the default branch?** Distance from the merge base, in commits. Far
+  enough and review is worthless because the diff no longer describes what would land.
+
+Those four separate "the reviewers are a bottleneck" from "nothing routes work to a reviewer"
+from "the author abandoned it" — three different fixes wearing the same symptom. Report which
+one each stalled PR has, and the count per cause. If one cause holds most of the column, that
+is the rule that's missing.
+
 Then measure the inflow — how many of these were created since the last sweep, and by what. If
 automation opens issues faster than you close them, cleaning is a treadmill and the finding is the
 rate, not the pile. Say the number.
@@ -231,6 +306,9 @@ the next one cheaper than this one.
 - **Flipping on structural evidence.** Code on the release branch and a green deploy. The single
   most common way this command goes wrong.
 - **Closing a teammate's ticket.** Not yours to close. Check the assignee before every write.
+- **A Done out of the PR-open lane.** Criteria satisfied in a diff is the strongest thing that
+  lane can say, and it still isn't production behaviour. Verified and unshipped is a status,
+  not a close.
 - **Trusting the ticket's own description.** "SHIPPED" in a description is a claim, not a fact.
 - **Verifying in main context.** Thirty issues will bury you. Delegate, then validate.
 - **Re-deriving ground truth per issue.** Establish the deployed revision once.
