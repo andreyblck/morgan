@@ -272,7 +272,7 @@ The branches. Reach for these when the cycle needs them.
 | `/qa` | Browser / visual smoke before declaring UI work done |
 | `/break` | Resume a parked job from its in-flight log |
 | `/board` | Audit the tracker's in-flight issues — shipped work against production, unmerged work against its acceptance criteria |
-| `/haul` | A pile of small jobs that need doing, not deciding — work them unattended, one after another |
+| `/haul` | A pile of small jobs that need doing, not deciding — work them unattended, one after another. `--fleet N` works them in parallel; `--to staging\|prod` merges them and proves each where it runs |
 
 ---
 
@@ -296,7 +296,7 @@ If a command file's `## Next` block disagrees with this table, the command file 
 | `/qa` | Findings → `/pull` the fixes; clean → `/clean` then `/camp` |
 | `/break` | Into the command the trail needs — `/track`, `/pull`, or `/scope` if scope shifted |
 | `/board` | Board honest → `/camp`. Pile-up has a systemic cause → `/scope` the pipeline fix. Verification turned up defects → `/track` the worst |
-| `/haul` | Landed work → `/clean` it. Ejected work → `/break <slug>`. A real bug behind an ejection → `/track`. Decisions in the report are the user's |
+| `/haul` | Landed work → `/clean` it. Ejected work → `/break <slug>`. A real bug behind an ejection → `/track`. Decisions and drafted replies in the report are the user's. Issues left in review after a `--to` run → `/board` |
 
 ---
 

@@ -121,7 +121,7 @@ You drive morgan with slash commands. A **cycle** of five for normal work, eight
 | `/qa` | The work touched UI — browser smoke check via Playwright |
 | `/break` | You're picking up parked work — resume from its in-flight log |
 | `/board` | The tracker says everything's in flight — verify it, shipped against prod and unmerged against its criteria |
-| `/haul` | A pile of small jobs that need doing, not deciding — work them unattended, one after another |
+| `/haul` | A pile of small jobs that need doing, not deciding — work them unattended, one after another. `--fleet N` works them in parallel; `--to staging\|prod` merges them and proves each where it runs |
 
 Branches don't replace the cycle — they feed into it:
 
@@ -135,6 +135,7 @@ UI work         /scope ─▶ /case ─▶ /pull ─▶ /qa ─▶ /clean ─▶
 Resume parked   /break ─▶ /track or /pull ─▶ /clean ─▶ /camp
 Stale board     /board ─▶ /scope the pipeline fix ─▶ /case ─▶ /pull ─▶ /camp
 Small jobs      /haul ─▶ /clean the landed ones ─▶ /break the ejected ─▶ /camp
+Ship a queue    /haul --fleet 3 --to prod ─▶ answer its decisions ─▶ /board what's left in review
 ```
 
 ## The crew
@@ -145,12 +146,13 @@ When the work needs another lens, the commands route to seven specialist sub-age
 
 ## What it leaves behind
 
-Each command writes to `.camp/` in your repo — gitignored, survives across sessions. `/aftermath` also appends a three-to-four-line entry to `.camp/lessons.md`: cross-session memory the skill reads on every session start, surfacing a past pattern when the current work resembles one. A job paused mid-flight leaves an **in-flight working log** in `.camp/` — what was tried, what's ruled out, what's still open; `/break` (or the next session's recovery scan of `.camp/`) picks it back up from there. `/board` leaves a dated audit trail — ground truth, per-issue verdicts and ruled-out theories — so the next sweep starts where this one stopped instead of re-deriving it. `/haul` leaves a dated run log with the queue table and the evidence per issue, plus an in-flight log for anything it ejected. Add `.camp/` to your `.gitignore`; when something deserves a permanent home (`docs/`, ADRs, runbooks), you decide where it goes.
+Each command writes to `.camp/` in your repo — gitignored, survives across sessions. `/aftermath` also appends a three-to-four-line entry to `.camp/lessons.md`: cross-session memory the skill reads on every session start, surfacing a past pattern when the current work resembles one. A job paused mid-flight leaves an **in-flight working log** in `.camp/` — what was tried, what's ruled out, what's still open; `/break` (or the next session's recovery scan of `.camp/`) picks it back up from there. `/board` leaves a dated audit trail — ground truth, per-issue verdicts and ruled-out theories — so the next sweep starts where this one stopped instead of re-deriving it. `/haul` leaves a dated run log with the queue table and the evidence per issue, plus an in-flight log for anything it ejected; with `--fleet` or `--to`, that log becomes a ledger — per-issue state, probe evidence, judgement calls, and replies drafted for your go. Add `.camp/` to your `.gitignore`; when something deserves a permanent home (`docs/`, ADRs, runbooks), you decide where it goes.
 
 ## Make it yours
 
 - **Project rules.** Drop your repo's conventions and key file pointers into `<repo>/.claude/skills/morgan/references/project-context.md`. It overrides the plugin's stub and becomes local law; the plugin's general references stay general.
 - **MCP, optional.** `/scope` reads Linear tickets, `/track` pulls Sentry telemetry, `/qa` checks against Figma, `/board` and `/haul` read and write issue status — each fails gracefully and proceeds if the server isn't connected. `/haul` works against a tracker it discovers at runtime, including a board kept as files in the repo, so it runs with nothing connected at all.
+- **Shipping with `/haul --to`.** To let `/haul` merge, promote and prove work in your environments, add a **ship recipe** to your project-context override: which branches and environments play staging and prod, how a change is promoted, how to read the deployed revision, and how to probe each environment read-only. The plugin's `project-context.md` carries the skeleton. Without a recipe, `--to` is refused and the run stays on branches.
 
 ## More
 

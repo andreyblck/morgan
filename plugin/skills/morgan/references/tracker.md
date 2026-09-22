@@ -1,6 +1,7 @@
 # Tracker
 
-Talk to whatever issue tracker the project already has. Loaded by `/haul`.
+Talk to whatever issue tracker the project already has. Loaded by `/haul`; the `fleet` reference
+builds on it.
 
 ---
 
@@ -70,9 +71,17 @@ These hold regardless of tracker, and regardless of how confident the run is.
 - **Never write to an issue assigned to someone else.** Check the assignee immediately before
   every write, on the object you already fetched. It's one field, and it's never the thing to
   skip because you're in a hurry.
-- **Never set a terminal status.** Done, Closed, Resolved — whatever this tracker calls the end
-  of the line. A terminal state is a claim about production behaviour, and a command working from
-  a branch has not observed any.
+- **Never set a terminal status** — Done, Closed, Resolved, whatever this tracker calls the end of
+  the line — **without behavioural proof in production.** A terminal state is a claim about
+  production behaviour, and a command working from a branch has not observed any. The one run that
+  can write it is `/haul --to prod`, after its probe and control have passed in production and the
+  evidence comment is posted; the `fleet` reference has the state table.
+- **Keep the status true to where the work is**, the moment it moves. Merged but not proven is
+  review, not started. Stopped on a decision is back to ready, with the question as a comment. A
+  merged issue left in a started status is the board lying about itself.
+- **Never post anything that reaches a person** — a reply to the reporter, a comment that mirrors
+  to chat — without the user's go for that text. Evidence for engineers is the exception; a
+  message to the reporter is not.
 - **Never create an issue without asking.** Propose it in the report and wait.
 - **Never delete or rewrite someone's comment.** Append.
 - **Post the evidence before the transition**, so whoever reads the issue sees why the status
@@ -103,4 +112,6 @@ A run that quietly skips its writes and reports success has lied about where the
 - **Re-deriving discovery per issue.** Find it once, write it down, reuse it.
 - **Treating a missing acceptance criterion as a formatting problem.** It's the finding.
 - **Writing a terminal status because everything looks right.** Looks right is not observed.
+- **Leaving merged work in a started status.** Todo shrinks, In Progress grows, and nothing on the
+  board says what actually shipped.
 - **Reporting success on a run whose writes were all skipped.**

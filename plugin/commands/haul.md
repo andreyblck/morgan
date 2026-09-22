@@ -1,7 +1,7 @@
 ---
 name: haul
 description: Work a queue of decision-free tracker issues unattended — reproduce, fix, test, commit to a branch, one after another.
-argument-hint: "[issue key | filter | nothing for the default queue]"
+argument-hint: "[--fleet N] [--to staging|prod] [issue key | filter | nothing for the default queue]"
 ---
 
 # /haul
@@ -28,6 +28,10 @@ Two things make that safe, and neither is optional:
 2. **When the work turns out to need a decision, it stops and moves on.** It doesn't guess and
    it doesn't wait. The issue is parked with a written trail, and the queue continues.
 
+That is the default, and without flags nothing below changes it. Two flags widen the run —
+`--fleet` for parallel workers, `--to` for how far the work travels — and each one adds gates
+rather than removing any. See *Modes*.
+
 ---
 
 ## Load skill
@@ -39,6 +43,8 @@ Before you do anything else, in this order:
    the method this command runs on — you can't execute the process below without them. Read them
    now even if you loaded the skill or other references earlier in this session: each command runs
    on its own, and the ones already in context are not these.
+3. If the run was started with a fleet or reach flag, also read `references/fleet.md`. It is the
+   whole method for those modes; the sections below describe the default run only.
 
 Don't start the work until they're read.
 
@@ -51,6 +57,28 @@ $ARGUMENTS
 **No arguments** means the default queue: issues assigned to the user in an unstarted or ready
 state. An issue key works one named issue. A filter — a label, a status, a set of keys — narrows
 the queue to that.
+
+Flags, if present, come first. See *Modes*.
+
+---
+
+## Modes
+
+| Invocation | What changes |
+|---|---|
+| `/haul` | nothing — everything below, as written |
+| `--fleet N` | up to N workers in parallel, each in its own worktree; the main session orchestrates and writes no code |
+| `--to staging` | the orchestrator merges, waits for the pre-production deploy, and proves each fix there by behaviour |
+| `--to prod`, or `--ship` | as above, then a scoped per-issue promote to production, proof there, and the tracker's terminal status |
+
+The flags combine. Parallelism and reach are separate questions: how many issues move at once,
+and how far each one goes.
+
+`--to` needs the project to declare how its code ships — the ship recipe, described in the
+`fleet` reference. Without one, refuse the flag in one line naming what's missing, and run at
+branch reach. The admission test, the ejection rule and the rule that governs everything here
+hold in every mode; the `fleet` reference says what each flag adds on top of them, and the
+invariants no flag relaxes.
 
 ---
 
@@ -116,7 +144,7 @@ was admitted that shouldn't have been.
 
 ## 3. Work one issue, start to finish
 
-Sequential, one at a time. Parallel work on one repository produces a git state nobody can
+Sequential, one at a time. Parallel work in one checkout produces a git state nobody can
 review and a failure nobody can attribute.
 
 For each admitted issue:
@@ -224,6 +252,10 @@ Written for someone who has been away for hours and wants the shape in ten secon
 4. **What didn't reach the tracker** — per issue, if writes were skipped or unavailable.
 5. **Budget** — issues worked against the run's limit, pushes and deploys against theirs.
 
+Under `--fleet` or `--to`, the report also carries what the ledger holds: the three live counts,
+issues in review with what each waits on, the judgement calls, replies drafted for your go, what
+was found along the way, and the cost in tokens and CI minutes.
+
 Numbers, not adjectives. "7 admitted, 5 landed, 2 ejected" beats "mostly went well".
 
 ---
@@ -233,6 +265,9 @@ Numbers, not adjectives. "7 admitted, 5 landed, 2 ejected" beats "mostly went we
 The run log goes to `.camp/haul-<date>.md` and is written **as you go**, not at the end: ground
 truth, the queue table with each issue's admission verdict, and the evidence per issue. Ejected
 issues get their own in-flight working log so `/break` can resume them.
+
+Under `--fleet` or `--to`, the run log is the ledger, started from `templates/fleet-ledger.md`,
+and the workers' standing brief sits beside it at `.camp/haul-<date>-brief.md`.
 
 ---
 
@@ -246,7 +281,8 @@ issues get their own in-flight working log so `/break` can resume them.
   that's how this repo works. Not unattended, it isn't.
 - **Bypassing hooks.** `--no-verify` assumes someone to ask. There is no one.
 - **Pushing through a failing check** because the fix "obviously" works.
-- **Working issues in parallel** to save time, and producing a git state nobody can review.
+- **Working issues in parallel** in one checkout to save time, and producing a git state nobody
+  can review. `--fleet` is the parallel mode, and it isolates every worker.
 - **Reporting every issue done.** On a real board that means the admission test didn't bite.
 - **A deploy on an unverifiable precondition.** The refusal is the feature.
 
