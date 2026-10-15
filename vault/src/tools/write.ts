@@ -1,18 +1,20 @@
-import { mkdir, writeFile, access } from 'node:fs/promises';
+import { mkdir, writeFile, access, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { cloneDir, type Config } from '../config.js';
+import { listNotes, type StoredNote } from '../findings.js';
+import { findDuplicate } from '../gate/dedup.js';
 import { runGate } from '../gate/index.js';
 import { git } from '../git.js';
-import { serializeNote, type Frontmatter } from '../notes.js';
+import { parseNote, serializeNote, type Frontmatter } from '../notes.js';
 import { loadVaultSettings } from '../projectContext.js';
 import { Repo } from '../repo.js';
-import { SERVER_FIELDS, TRAIL_SECTIONS, trailFields } from '../schema/trail.js';
+import { KINDS, NOTE_TYPES, type NoteType } from '../schema/index.js';
 import { ulid } from '../ulid.js';
 import { resolveProject } from './status.js';
 
 export const writeInput = {
-  type: z.enum(['trail']),
+  type: z.enum(NOTE_TYPES),
   fields: z.record(z.string(), z.unknown()),
   body: z.string(),
 };
@@ -21,7 +23,8 @@ export type WriteResult =
   | { ok: true; path: string; ulid: string }
   | { ok: false; code: string; detail: string; existing?: string };
 
-const refuse = (code: string, detail: string): WriteResult => ({ ok: false, code, detail });
+const refuse = (code: string, detail: string, existing?: string): WriteResult =>
+  existing === undefined ? { ok: false, code, detail } : { ok: false, code, detail, existing };
 const exists = (p: string) => access(p).then(() => true, () => false);
 
 function slugOf(text: string): string {
@@ -47,24 +50,35 @@ function checkSections(body: string, sections: readonly string[]): string | null
   return null;
 }
 
-export async function writeNote(cfg: Config, input: { type: 'trail'; fields: Record<string, unknown>; body: string }): Promise<WriteResult> {
-  if (cfg.repo === null) return refuse('not_configured', 'MORGAN_VAULT_REPO is empty');
-
-  for (const f of SERVER_FIELDS) if (f in input.fields) return refuse('field_not_writable', `"${f}" is set by the server`);
-
-  const parsed = trailFields.safeParse(input.fields);
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0]!;
-    if (issue.code === 'unrecognized_keys') return refuse('unknown_field', `unknown field(s): ${(issue as { keys: string[] }).keys.join(', ')}`);
-    return refuse('schema_error', `${issue.path.join('.') || '(root)'}: ${issue.message}`);
+/** Schema refusals, in the order a reader would want to hear them. */
+function schemaRefusal(type: NoteType, fields: Record<string, unknown>): WriteResult | null {
+  const kind = KINDS[type];
+  for (const f of kind.serverFields) if (f in fields) return refuse('field_not_writable', `"${f}" is set by the server`);
+  if (type === 'finding' && 'confidence' in fields && fields.confidence !== 'Confirmed') {
+    return refuse('confidence_not_confirmed', `a finding needs confidence "Confirmed"; got ${JSON.stringify(fields.confidence)}`);
   }
-  const sectionError = checkSections(input.body, TRAIL_SECTIONS);
+  const parsed = kind.fields.safeParse(fields);
+  if (parsed.success) return null;
+  const issue = parsed.error.issues[0]!;
+  if (issue.code === 'unrecognized_keys') return refuse('unknown_field', `unknown field(s): ${(issue as { keys: string[] }).keys.join(', ')}`);
+  if (issue.path[0] === 'verify' && issue.path.length > 1) return refuse('verify_not_argv', `verify[${String(issue.path[1])}]: ${issue.message}`);
+  return refuse('schema_error', `${issue.path.join('.') || '(root)'}: ${issue.message}`);
+}
+
+export async function writeNote(cfg: Config, input: { type: NoteType; fields: Record<string, unknown>; body: string }): Promise<WriteResult> {
+  if (cfg.repo === null) return refuse('not_configured', 'MORGAN_VAULT_REPO is empty');
+  const kind = KINDS[input.type];
+
+  const schemaError = schemaRefusal(input.type, input.fields);
+  if (schemaError) return schemaError;
+  const fields = kind.fields.parse(input.fields) as Record<string, unknown>;
+  const sectionError = checkSections(input.body, kind.sections);
   if (sectionError) return refuse('schema_error', sectionError);
 
   const author = await projectAuthor(cfg.projectDir);
   const settings = await loadVaultSettings(cfg.projectDir);
   const refusal = await runGate({
-    text: serializeNote(parsed.data, input.body),
+    text: serializeNote(fields, input.body),
     body: input.body,
     projectDir: cfg.projectDir,
     gitUserName: author.name === 'unknown' ? null : author.name,
@@ -79,6 +93,19 @@ export async function writeNote(cfg: Config, input: { type: 'trail'; fields: Rec
   const cloneError = await repo.ensure();
   if (cloneError) return refuse('not_ready', cloneError);
 
+  // Dedup and supersede need the project's findings as they are now.
+  let superseded: StoredNote | null = null;
+  if (input.type === 'finding') {
+    const existing = await listNotes(repo.clone, project.slug, 'findings');
+    const target = typeof fields.supersedes === 'string' ? fields.supersedes : null;
+    if (target !== null) {
+      superseded = existing.find((n) => n.ulid === target && n.frontmatter.status === 'active') ?? null;
+      if (!superseded) return refuse('schema_error', `supersedes: no active finding ${target} in ${project.slug}`);
+    }
+    const dup = findDuplicate(fields as { symptom: string; cause: string }, existing, target);
+    if (dup) return refuse(dup.code, dup.detail, dup.existing);
+  }
+
   const id = ulid();
   const head = await projectHead(cfg.projectDir);
   const created = new Date().toISOString();
@@ -90,9 +117,10 @@ export async function writeNote(cfg: Config, input: { type: 'trail'; fields: Rec
     created,
     sha: head.sha,
     branch: head.branch,
-    ...parsed.data,
+    ...fields,
+    ...(input.type === 'finding' ? { status: 'active' } : {}),
   };
-  const notePath = `projects/${project.slug}/trails/${id}-${slugOf(parsed.data.goal)}.md`;
+  const notePath = `projects/${project.slug}/${kind.dir}/${id}-${slugOf(String(fields[kind.slugFrom] ?? ''))}.md`;
   const projectPath = `projects/${project.slug}/project.md`;
 
   const paths = [notePath];
@@ -110,6 +138,14 @@ export async function writeNote(cfg: Config, input: { type: 'trail'; fields: Rec
       if (!(await exists(join(repo.clone, '.gitignore')))) {
         await writeFile(join(repo.clone, '.gitignore'), '.obsidian/\n');
         paths.push('.gitignore');
+      }
+      if (superseded) {
+        // Re-read after the pull: the file on disk is the one the commit will carry.
+        const current = parseNote(await readFile(join(repo.clone, superseded.path), 'utf8'));
+        if (!('invalid' in current)) {
+          await writeFile(join(repo.clone, superseded.path), serializeNote({ ...current.frontmatter, status: 'superseded', superseded_by: id }, current.body));
+          paths.push(superseded.path);
+        }
       }
       await mkdir(join(repo.clone, dirname(notePath)), { recursive: true });
       await writeFile(join(repo.clone, notePath), serializeNote(frontmatter, input.body));
