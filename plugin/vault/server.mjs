@@ -43970,7 +43970,7 @@ var Log = class {
 
 // src/repo.ts
 import { access, mkdir as mkdir2, rm as rm2 } from "node:fs/promises";
-import { dirname as dirname2, join as join3 } from "node:path";
+import { dirname as dirname2, join as join4 } from "node:path";
 
 // src/git.ts
 import { execFile } from "node:child_process";
@@ -44043,6 +44043,106 @@ async function withLock(cloneDir2, fn) {
   }
 }
 
+// src/projectContext.ts
+import { readFile as readFile2 } from "node:fs/promises";
+import { join as join3 } from "node:path";
+var OVERRIDE_PATH = ".claude/skills/morgan/references/project-context.md";
+function parseVaultSection(markdown) {
+  const settings = { project: null, cross_project: false, deny: [] };
+  const lines = markdown.split("\n");
+  let inVault = false;
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (/^##\s/.test(line)) {
+      inVault = /^##\s+vault\s*$/i.test(line);
+      continue;
+    }
+    if (!inVault) continue;
+    const m = /^-\s*([a-z_]+)\s*:\s*(.*)$/i.exec(line.trim().replace(/\*\*/g, ""));
+    if (!m) continue;
+    const key = m[1].toLowerCase();
+    const value = m[2].trim();
+    if (key === "project" && /^[a-z0-9-]+$/.test(value)) settings.project = value;
+    else if (key === "cross_project") settings.cross_project = /^(true|yes)$/i.test(value);
+    else if (key === "deny") settings.deny = value.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  return settings;
+}
+async function loadVaultSettings(projectDir) {
+  try {
+    return parseVaultSection(await readFile2(join3(projectDir, OVERRIDE_PATH), "utf8"));
+  } catch {
+    return { project: null, cross_project: false, deny: [] };
+  }
+}
+
+// src/project.ts
+function normalizeRemote(url2) {
+  const raw = url2.trim();
+  if (raw === "") return null;
+  let host;
+  let path;
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(raw);
+  if (scheme) {
+    if (scheme[1].toLowerCase() === "file") return null;
+    let u;
+    try {
+      u = new URL(raw);
+    } catch {
+      return null;
+    }
+    host = u.hostname;
+    path = u.pathname;
+  } else {
+    const scp = /^(?:[^@/]+@)?([^:/]+):(.+)$/.exec(raw);
+    if (!scp || raw.startsWith("/") || raw.startsWith(".")) return null;
+    host = scp[1];
+    path = scp[2];
+  }
+  host = host.toLowerCase();
+  const segments = path.toLowerCase().replace(/\.git$/, "").split("/").filter((s) => s !== "" && s !== "." && s !== "..").map((s) => s.replace(/\.git$/, ""));
+  if (host === "" || segments.length < 2) return null;
+  const slug = segments.map((s) => s.replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "")).join("--");
+  if (!/^[a-z0-9-]+$/.test(slug)) return null;
+  return { remote: `${host}/${segments.join("/")}`, slug };
+}
+var REF_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+var UnsafeRef = class extends Error {
+  constructor(ref) {
+    super(`unsafe git ref: ${JSON.stringify(ref)}`);
+    this.ref = ref;
+  }
+  ref;
+};
+function assertRef(ref) {
+  if (!REF_RE.test(ref) || ref.includes("..") || ref.endsWith(".lock") || ref.endsWith("/")) throw new UnsafeRef(ref);
+  return ref;
+}
+function isHexSha(s) {
+  return /^[0-9a-f]{7,40}$/.test(s);
+}
+async function resolveProject(projectDir) {
+  const r = await git(["config", "--get", "remote.origin.url"], projectDir);
+  if (!r.ok) {
+    return { project: null, reason: `no git remote "origin" in ${projectDir}; set vault.project in the project-context override` };
+  }
+  const project = normalizeRemote(r.stdout.trim());
+  if (!project) {
+    return {
+      project: null,
+      reason: `remote "origin" is a path, not a URL (${r.stdout.trim()}); set vault.project in the project-context override`
+    };
+  }
+  return { project, reason: null };
+}
+async function resolveScopedProject(cfg2) {
+  const { project, reason } = await resolveProject(cfg2.projectDir);
+  if (project) return { project, reason: null };
+  const settings = await loadVaultSettings(cfg2.projectDir);
+  if (settings.project) return { project: { slug: settings.project, remote: null }, reason: null };
+  return { project: null, reason };
+}
+
 // src/repo.ts
 var TRAILER = "Vault-Server: morgan-vault";
 var PUSH_ATTEMPTS = 5;
@@ -44059,19 +44159,24 @@ var Repo = class {
   note;
   /** Clone on first use. Returns the error text when that can't be done. */
   async ensure() {
-    if (await exists(join3(this.clone, ".git"))) return null;
+    if (await exists(join4(this.clone, ".git"))) return null;
     await mkdir2(dirname2(this.clone), { recursive: true });
     return withLock(dirname2(this.clone), async () => {
-      if (await exists(join3(this.clone, ".git"))) return null;
+      if (await exists(join4(this.clone, ".git"))) return null;
       const r = await git(["clone", "--quiet", "--", this.url, this.clone], dirname2(this.clone));
       return r.ok ? null : `clone failed: ${r.stderr.trim() || `git exited ${r.code}`}`;
     });
   }
+  /**
+   * The default branch. Validated before it ever reaches a git argument: the value comes from
+   * the vault remote's HEAD, and a branch named like `--upload-pack=...` would otherwise turn a
+   * routine pull into code execution. An unsafe name throws rather than operating on it.
+   */
   async branch() {
     const r = await git(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], this.clone);
-    if (r.ok) return r.stdout.trim().replace(/^origin\//, "");
+    if (r.ok) return assertRef(r.stdout.trim().replace(/^origin\//, ""));
     const local = await git(["symbolic-ref", "--quiet", "--short", "HEAD"], this.clone);
-    return local.ok ? local.stdout.trim() : "main";
+    return assertRef(local.ok ? local.stdout.trim() : "main");
   }
   knownRemoteBranches = /* @__PURE__ */ new Set();
   /** A round-trip to the remote, so once a branch is known to exist the answer is kept. */
@@ -44098,7 +44203,7 @@ var Repo = class {
     return r.ok ? r.stdout.trim() : "";
   }
   async midRebase() {
-    return await exists(join3(this.clone, ".git", "rebase-merge")) || await exists(join3(this.clone, ".git", "rebase-apply"));
+    return await exists(join4(this.clone, ".git", "rebase-merge")) || await exists(join4(this.clone, ".git", "rebase-apply"));
   }
   async abortRebase() {
     await git(["rebase", "--abort"], this.clone);
@@ -44161,6 +44266,7 @@ var Repo = class {
       return await withLock(this.clone, () => this.cycle(opts));
     } catch (e) {
       if (e instanceof LockTimeout) return { ok: false, code: "lock_timeout", detail: e.message };
+      if (e instanceof UnsafeRef) return { ok: false, code: "unsafe_ref", detail: e.message };
       throw e;
     }
   }
@@ -44180,7 +44286,7 @@ var Repo = class {
     await opts.write();
     const add = await git(["add", "--", ...opts.paths], this.clone);
     if (!add.ok) {
-      await git(["checkout", "--", ...opts.paths], this.clone);
+      await this.restorePaths(opts.paths);
       return { ok: false, code: "pull_failed", detail: `git add: ${add.stderr.trim()}` };
     }
     const commit = await git(
@@ -44191,11 +44297,26 @@ ${TRAILER}/0.2.0`, "--", ...opts.paths],
     );
     if (!commit.ok) {
       await git(["reset", "--quiet", "--", ...opts.paths], this.clone);
-      for (const p of opts.paths) await rm2(join3(this.clone, p), { force: true });
+      await this.restorePaths(opts.paths);
       return { ok: false, code: "pull_failed", detail: `git commit: ${commit.stderr.trim()}` };
     }
     if (await this.pushWithRetry(branch)) return { ok: true };
     return { ok: false, code: "committed_not_pushed", detail: `committed locally; the push was rejected ${PUSH_ATTEMPTS} times` };
+  }
+  /**
+   * Undo a failed write without leaving the clone dirty. A path that exists in HEAD is a
+   * tracked file (a superseded note being flipped) — restore it; one that doesn't is a fresh
+   * file — remove it. Deleting a tracked file instead would make the clone permanently dirty,
+   * and reconcile never resets.
+   */
+  async restorePaths(paths) {
+    for (const p of paths) {
+      if ((await git(["cat-file", "-e", `HEAD:${p}`], this.clone)).ok) {
+        await git(["checkout", "--", p], this.clone);
+      } else {
+        await rm2(join4(this.clone, p), { force: true });
+      }
+    }
   }
   async pushWithRetry(branch) {
     for (let attempt = 1; attempt <= PUSH_ATTEMPTS; attempt++) {
@@ -44214,20 +44335,20 @@ ${TRAILER}/0.2.0`, "--", ...opts.paths],
 
 // src/sync.ts
 import { stat } from "node:fs/promises";
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
 
 // src/index.ts
 import { readdir as readdir2 } from "node:fs/promises";
-import { join as join6 } from "node:path";
+import { join as join7 } from "node:path";
 
 // src/findings.ts
 import { readdir } from "node:fs/promises";
-import { join as join5 } from "node:path";
+import { join as join6 } from "node:path";
 
 // src/notes.ts
 var import_yaml = __toESM(require_dist2(), 1);
-import { lstat, readFile as readFile2, realpath } from "node:fs/promises";
-import { isAbsolute, join as join4, resolve, sep } from "node:path";
+import { lstat, readFile as readFile3, realpath } from "node:fs/promises";
+import { isAbsolute, join as join5, resolve, sep } from "node:path";
 var MAX_NOTE_BYTES = 64 * 1024;
 function serializeNote(frontmatter, body) {
   const fm = (0, import_yaml.stringify)(frontmatter, { lineWidth: 0 }).trimEnd();
@@ -44255,8 +44376,8 @@ var marker = {
   end: "<<<end-vault-note>>>"
 };
 function envelopeBody(ulid4, body) {
-  const escaped = body.includes("<<<");
-  const safe = body.replace(/<<</g, "<\\<<");
+  const escaped = /<{2,}/.test(body);
+  const safe = body.replace(/<{2,}/g, (run) => run.split("").join("\\"));
   return { body: `${marker.begin(ulid4)}
 ${safe}
 ${marker.end}`, escaped };
@@ -44272,10 +44393,10 @@ async function resolveNotePath(clone2, rel, opts) {
   if (isAbsolute(rel) || rel.includes("\0")) throw new PathRefused("absolute path");
   if (!rel.endsWith(".md")) throw new PathRefused("not a markdown file");
   const cloneReal = await realpath(clone2);
-  const root = join4(cloneReal, "projects");
+  const root = join5(cloneReal, "projects");
   const abs = resolve(cloneReal, rel);
   if (!abs.startsWith(root + sep)) throw new PathRefused("outside projects/");
-  const parentReal = await realpath(join4(abs, "..")).catch(() => null);
+  const parentReal = await realpath(join5(abs, "..")).catch(() => null);
   if (parentReal === null) {
     if (opts.mustExist) throw new PathRefused("no such directory");
     return abs;
@@ -44290,8 +44411,12 @@ async function resolveNotePath(clone2, rel, opts) {
   if (!st.isFile()) throw new PathRefused("not a file");
   return abs;
 }
+var MAX_NOTE_FILE_BYTES = MAX_NOTE_BYTES;
 async function readNoteFile(abs) {
-  return parseNote(await readFile2(abs, "utf8"));
+  const st = await lstat(abs).catch(() => null);
+  if (st === null || !st.isFile()) return null;
+  if (st.size > MAX_NOTE_FILE_BYTES) return { invalid: `note larger than ${MAX_NOTE_FILE_BYTES} bytes` };
+  return parseNote(await readFile3(abs, "utf8"));
 }
 
 // src/ulid.ts
@@ -44316,7 +44441,7 @@ async function listNotes(clone2, projectSlug, dir) {
   const rel = `projects/${projectSlug}/${dir}`;
   let names;
   try {
-    names = await readdir(join5(clone2, rel));
+    names = await readdir(join6(clone2, rel));
   } catch {
     return [];
   }
@@ -44325,8 +44450,8 @@ async function listNotes(clone2, projectSlug, dir) {
     if (!name.endsWith(".md")) continue;
     const ulid4 = name.slice(0, 26);
     if (!ULID_RE.test(ulid4)) continue;
-    const note = await readNoteFile(join5(clone2, rel, name));
-    if ("invalid" in note) continue;
+    const note = await readNoteFile(join6(clone2, rel, name));
+    if (note === null || "invalid" in note) continue;
     out.push({ path: `${rel}/${name}`, ulid: ulid4, frontmatter: note.frontmatter, body: note.body });
   }
   return out;
@@ -44342,6 +44467,37 @@ function jaccard(a, b) {
   for (const t of a) if (b.has(t)) inter++;
   return inter / (a.size + b.size - inter);
 }
+
+// src/schema/trail.ts
+var SERVER_FIELDS = ["type", "project", "author", "created", "sha", "branch"];
+var projectFile = external_exports.string().min(1).max(300).refine((p) => !p.startsWith("/") && !/(^|\/)\.\.(\/|$)/.test(p), "must be a relative path inside the project");
+var TRAIL_SECTIONS = ["## Goal", "## Timeline", "## Ruled out", "## Open / untried", "## Confidence", "## Next"];
+var trailFields = external_exports.object({
+  goal: external_exports.string().min(1).max(200),
+  files: external_exports.array(projectFile).max(50),
+  status: external_exports.enum(["open", "closed"]).default("open"),
+  closed_by: external_exports.string().max(200).optional()
+}).strict();
+
+// src/schema/finding.ts
+var SHELL_META = /[;&|$()`<>\n\r]/;
+var argvElement = external_exports.string().min(1).max(300).refine((s) => !SHELL_META.test(s), "shell metacharacters are not allowed in an argv element");
+var findingFields = external_exports.object({
+  symptom: external_exports.string().min(1).max(500),
+  cause: external_exports.string().min(1).max(1e3),
+  confidence: external_exports.literal("Confirmed"),
+  verify: external_exports.array(argvElement).min(1).max(30),
+  files: external_exports.array(projectFile).min(1).max(50),
+  fix_sha: external_exports.string().regex(/^[0-9a-f]{7,40}$/).optional(),
+  supersedes: external_exports.string().regex(ULID_RE).optional()
+}).strict();
+
+// src/schema/index.ts
+var NOTE_TYPES = ["trail", "finding"];
+var KINDS = {
+  trail: { dir: "trails", fields: trailFields, serverFields: SERVER_FIELDS, sections: TRAIL_SECTIONS, slugFrom: "goal" },
+  finding: { dir: "findings", fields: findingFields, serverFields: [...SERVER_FIELDS, "status", "superseded_by"], sections: [], slugFrom: "symptom" }
+};
 
 // src/index.ts
 var Index = class _Index {
@@ -44463,13 +44619,14 @@ function toIndexed(n) {
 async function collectNotes(clone2) {
   let slugs;
   try {
-    slugs = await readdir2(join6(clone2, "projects"));
+    slugs = await readdir2(join7(clone2, "projects"));
   } catch {
     return [];
   }
+  const dirs = [...new Set(Object.values(KINDS).map((k) => k.dir))];
   const out = [];
   for (const slug of slugs) {
-    for (const dir of ["findings", "trails"]) {
+    for (const dir of dirs) {
       for (const n of await listNotes(clone2, slug, dir)) out.push(toIndexed(n));
     }
   }
@@ -44500,8 +44657,14 @@ var Sync = class {
     const now = Date.now();
     if (now - this.lastPull >= this.ttlMs) {
       this.lastPull = now;
-      const branch = await this.repo.branch();
-      const ok = await this.repo.remoteHasBranch(branch) ? await this.repo.pullFfOnly(branch) : await this.repo.remoteReachable();
+      const ok = await (async () => {
+        try {
+          const branch = await this.repo.branch();
+          return await this.repo.remoteHasBranch(branch) ? await this.repo.pullFfOnly(branch) : await this.repo.remoteReachable();
+        } catch {
+          return false;
+        }
+      })();
       if (ok) {
         this.lastGoodSync = new Date(now).toISOString();
         this.stale = false;
@@ -44524,7 +44687,7 @@ var Sync = class {
   async cloneTouchedAt() {
     for (const f of ["FETCH_HEAD", "HEAD"]) {
       try {
-        return (await stat(join7(this.repo.clone, ".git", f))).mtime.toISOString();
+        return (await stat(join8(this.repo.clone, ".git", f))).mtime.toISOString();
       } catch {
       }
     }
@@ -44538,6 +44701,7 @@ var str2 = (v) => typeof v === "string" ? v : null;
 var strList = (v) => Array.isArray(v) && v.every((x) => typeof x === "string") ? v : null;
 async function staleness(projectDir, sha, files) {
   if (!sha || !files || files.length === 0) return null;
+  if (!isHexSha(sha)) return { unknown: true };
   const ancestor = await git(["merge-base", "--is-ancestor", sha, "HEAD"], projectDir);
   if (!ancestor.ok) return { unknown: true };
   const log2 = await git(["log", "--format=%H", `${sha}..HEAD`, "--", ...files], projectDir);
@@ -44550,6 +44714,11 @@ async function readNote(cfg2, path) {
   const repo2 = new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
   const cloneError = await repo2.ensure();
   if (cloneError) return { ok: false, code: "not_ready", detail: cloneError };
+  const { project } = await resolveScopedProject(cfg2);
+  const { cross_project } = await loadVaultSettings(cfg2.projectDir);
+  if (project && !cross_project && !path.startsWith(`projects/${project.slug}/`)) {
+    return { ok: false, code: "path_refused", detail: `outside the current project (${project.slug}); set cross_project to read another` };
+  }
   let abs;
   try {
     abs = await resolveNotePath(repo2.clone, path, { mustExist: true });
@@ -44560,13 +44729,16 @@ async function readNote(cfg2, path) {
     throw e;
   }
   const note = await readNoteFile(abs);
+  if (note === null) return { ok: false, code: "invalid", detail: "not a readable note file" };
   if ("invalid" in note) return { ok: false, code: "invalid", detail: note.invalid };
   const base = path.slice(path.lastIndexOf("/") + 1);
   const id = base.slice(0, 26);
   const ulid4 = ULID_RE.test(id) ? id : null;
   const env = envelopeBody(ulid4 ?? "unknown", note.body);
   const type = str2(note.frontmatter.type);
-  const verify = type === "finding" ? strList(note.frontmatter.verify) : null;
+  const rawVerify = type === "finding" ? strList(note.frontmatter.verify) : null;
+  const verifyRejected = rawVerify !== null && !rawVerify.every((e) => argvElement.safeParse(e).success);
+  const verify = verifyRejected ? null : rawVerify;
   return {
     ok: true,
     path,
@@ -44585,148 +44757,9 @@ async function readNote(cfg2, path) {
     stale: type === "finding" ? await staleness(cfg2.projectDir, str2(note.frontmatter.sha), strList(note.frontmatter.files)) : null,
     verify,
     verify_policy: verify ? "show_to_user_never_autorun" : null,
+    ...verifyRejected ? { verify_rejected: true } : {},
     markers: { begin: marker.begin(ulid4 ?? "unknown"), end: marker.end },
     markers_escaped: env.escaped
-  };
-}
-
-// src/projectContext.ts
-import { readFile as readFile3 } from "node:fs/promises";
-import { join as join8 } from "node:path";
-var OVERRIDE_PATH = ".claude/skills/morgan/references/project-context.md";
-function parseVaultSection(markdown) {
-  const settings = { project: null, cross_project: false, deny: [] };
-  const lines = markdown.split("\n");
-  let inVault = false;
-  for (const raw of lines) {
-    const line = raw.trimEnd();
-    if (/^##\s/.test(line)) {
-      inVault = /^##\s+vault\s*$/i.test(line);
-      continue;
-    }
-    if (!inVault) continue;
-    const m = /^-\s*([a-z_]+)\s*:\s*(.*)$/i.exec(line.trim());
-    if (!m) continue;
-    const key = m[1].toLowerCase();
-    const value = m[2].trim();
-    if (key === "project" && /^[a-z0-9-]+$/.test(value)) settings.project = value;
-    else if (key === "cross_project") settings.cross_project = /^(true|yes)$/i.test(value);
-    else if (key === "deny") settings.deny = value.split(",").map((s) => s.trim()).filter(Boolean);
-  }
-  return settings;
-}
-async function loadVaultSettings(projectDir) {
-  try {
-    return parseVaultSection(await readFile3(join8(projectDir, OVERRIDE_PATH), "utf8"));
-  } catch {
-    return { project: null, cross_project: false, deny: [] };
-  }
-}
-
-// src/schema/trail.ts
-var SERVER_FIELDS = ["type", "project", "author", "created", "sha", "branch"];
-var projectFile = external_exports.string().min(1).max(300).refine((p) => !p.startsWith("/") && !/(^|\/)\.\.(\/|$)/.test(p), "must be a relative path inside the project");
-var TRAIL_SECTIONS = ["## Goal", "## Timeline", "## Ruled out", "## Open / untried", "## Confidence", "## Next"];
-var trailFields = external_exports.object({
-  goal: external_exports.string().min(1).max(200),
-  files: external_exports.array(projectFile).max(50),
-  status: external_exports.enum(["open", "closed"]).default("open"),
-  closed_by: external_exports.string().max(200).optional()
-}).strict();
-
-// src/schema/finding.ts
-var SHELL_META = /[;&|$()`<>\n\r]/;
-var argvElement = external_exports.string().min(1).max(300).refine((s) => !SHELL_META.test(s), "shell metacharacters are not allowed in an argv element");
-var findingFields = external_exports.object({
-  symptom: external_exports.string().min(1).max(500),
-  cause: external_exports.string().min(1).max(1e3),
-  confidence: external_exports.literal("Confirmed"),
-  verify: external_exports.array(argvElement).min(1).max(30),
-  files: external_exports.array(projectFile).min(1).max(50),
-  fix_sha: external_exports.string().regex(/^[0-9a-f]{7,40}$/).optional(),
-  supersedes: external_exports.string().regex(ULID_RE).optional()
-}).strict();
-
-// src/schema/index.ts
-var NOTE_TYPES = ["trail", "finding"];
-var KINDS = {
-  trail: { dir: "trails", fields: trailFields, serverFields: SERVER_FIELDS, sections: TRAIL_SECTIONS, slugFrom: "goal" },
-  finding: { dir: "findings", fields: findingFields, serverFields: [...SERVER_FIELDS, "status", "superseded_by"], sections: [], slugFrom: "symptom" }
-};
-
-// src/project.ts
-function normalizeRemote(url2) {
-  const raw = url2.trim();
-  if (raw === "") return null;
-  let host;
-  let path;
-  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(raw);
-  if (scheme) {
-    if (scheme[1].toLowerCase() === "file") return null;
-    let u;
-    try {
-      u = new URL(raw);
-    } catch {
-      return null;
-    }
-    host = u.hostname;
-    path = u.pathname;
-  } else {
-    const scp = /^(?:[^@/]+@)?([^:/]+):(.+)$/.exec(raw);
-    if (!scp || raw.startsWith("/") || raw.startsWith(".")) return null;
-    host = scp[1];
-    path = scp[2];
-  }
-  host = host.toLowerCase();
-  const segments = path.toLowerCase().replace(/\.git$/, "").split("/").filter((s) => s !== "" && s !== "." && s !== "..").map((s) => s.replace(/\.git$/, ""));
-  if (host === "" || segments.length < 2) return null;
-  const slug = segments.map((s) => s.replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "")).join("--");
-  if (!/^[a-z0-9-]+$/.test(slug)) return null;
-  return { remote: `${host}/${segments.join("/")}`, slug };
-}
-
-// src/tools/status.ts
-async function resolveProject(projectDir) {
-  const r = await git(["config", "--get", "remote.origin.url"], projectDir);
-  if (!r.ok) {
-    return { project: null, reason: `no git remote "origin" in ${projectDir}; set vault.project in the project-context override` };
-  }
-  const project = normalizeRemote(r.stdout.trim());
-  if (!project) {
-    return {
-      project: null,
-      reason: `remote "origin" is a path, not a URL (${r.stdout.trim()}); set vault.project in the project-context override`
-    };
-  }
-  return { project, reason: null };
-}
-async function status(cfg2, repo2) {
-  if (cfg2.repo === null) {
-    return { configured: false, reason: "MORGAN_VAULT_REPO is empty", project_dir: cfg2.projectDir };
-  }
-  const r = repo2 ?? new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
-  const error62 = await r.ensure();
-  const { project, reason } = await resolveProject(cfg2.projectDir);
-  let unpushed = 0;
-  let foreign = 0;
-  if (error62 === null) {
-    const rec = await r.reconcile();
-    const pending = await r.unpushed();
-    unpushed = pending.length;
-    foreign = rec.foreign;
-  }
-  return {
-    configured: true,
-    ready: error62 === null,
-    reason: error62,
-    repo: cfg2.repo,
-    clone: r.clone,
-    project,
-    project_reason: reason,
-    project_dir: cfg2.projectDir,
-    unpushed,
-    unpushed_foreign: foreign,
-    stale_since: null
   };
 }
 
@@ -44746,17 +44779,16 @@ var recentInput = {
   cross_project: external_exports.boolean().optional()
 };
 async function scope(cfg2, cross) {
-  const { project, reason } = await resolveProject(cfg2.projectDir);
-  const settings = await loadVaultSettings(cfg2.projectDir);
-  const slug = project?.slug ?? settings.project;
+  const { project, reason } = await resolveScopedProject(cfg2);
   if (cross) {
+    const settings = await loadVaultSettings(cfg2.projectDir);
     if (!settings.cross_project) {
       return { ok: false, code: "cross_project_not_allowed", detail: "set `- cross_project: true` under ## Vault in the project-context override to search other projects" };
     }
     return { project: null };
   }
-  if (!slug) return { ok: false, code: "project_unknown", detail: reason ?? "no project" };
-  return { project: slug };
+  if (!project) return { ok: false, code: "project_unknown", detail: reason ?? "no project" };
+  return { project: project.slug };
 }
 async function searchNotes(cfg2, sync2, input2) {
   if (cfg2.repo === null || !sync2) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
@@ -44775,6 +44807,40 @@ async function recentNotes(cfg2, sync2, input2) {
   if (sync2.index.error) return { ok: false, code: "fts_unavailable", detail: sync2.index.error };
   const results = sync2.index.recent({ since: input2.since, project: s.project, type: input2.type, status: input2.status, limit: input2.limit ?? 20 });
   return { ok: true, project: s.project, results, stale_since: sync2.staleSince };
+}
+
+// src/tools/status.ts
+async function status(cfg2, repo2) {
+  if (cfg2.repo === null) {
+    return { configured: false, reason: "MORGAN_VAULT_REPO is empty", project_dir: cfg2.projectDir };
+  }
+  const r = repo2 ?? new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
+  const error62 = await r.ensure();
+  const { project, reason } = await resolveScopedProject(cfg2);
+  let dirty = false;
+  let unpushed = 0;
+  let foreign = 0;
+  if (error62 === null) {
+    const rec = await r.reconcile();
+    const pending = await r.unpushed();
+    unpushed = pending.length;
+    foreign = rec.foreign;
+    dirty = await r.dirty();
+  }
+  return {
+    configured: true,
+    ready: error62 === null,
+    reason: error62,
+    repo: cfg2.repo,
+    clone: r.clone,
+    project,
+    project_reason: reason,
+    project_dir: cfg2.projectDir,
+    dirty,
+    unpushed,
+    unpushed_foreign: foreign,
+    stale_since: null
+  };
 }
 
 // src/tools/write.ts
@@ -44987,7 +45053,7 @@ async function writeNote(cfg2, input2, sharedRepo) {
     deny: settings.deny
   });
   if (refusal) return refuse(refusal.code, refusal.detail);
-  const { project, reason } = await resolveProject(cfg2.projectDir);
+  const { project, reason } = await resolveScopedProject(cfg2);
   if (!project) return refuse("project_unknown", reason ?? "no project");
   const repo2 = sharedRepo ?? new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
   const cloneError = await repo2.ensure();
@@ -45026,7 +45092,7 @@ async function writeNote(cfg2, input2, sharedRepo) {
     write: async () => {
       if (!await exists2(join10(repo2.clone, projectPath))) {
         await mkdir3(join10(repo2.clone, dirname3(projectPath)), { recursive: true });
-        await writeFile(join10(repo2.clone, projectPath), serializeNote({ slug: project.slug, remotes: [project.remote] }, `# ${project.slug}
+        await writeFile(join10(repo2.clone, projectPath), serializeNote({ slug: project.slug, remotes: project.remote ? [project.remote] : [] }, `# ${project.slug}
 `));
         paths.push(projectPath);
       }

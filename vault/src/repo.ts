@@ -2,13 +2,14 @@ import { access, mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { git } from './git.js';
 import { LockTimeout, withLock } from './lock.js';
+import { assertRef, UnsafeRef } from './project.js';
 
 const TRAILER = 'Vault-Server: morgan-vault';
 const PUSH_ATTEMPTS = 5;
 
 export type RepoError = {
   ok: false;
-  code: 'clone_dirty' | 'clone_needs_reconcile' | 'pull_failed' | 'committed_not_pushed' | 'lock_timeout';
+  code: 'clone_dirty' | 'clone_needs_reconcile' | 'pull_failed' | 'committed_not_pushed' | 'lock_timeout' | 'unsafe_ref';
   detail: string;
 };
 
@@ -35,11 +36,16 @@ export class Repo {
     });
   }
 
+  /**
+   * The default branch. Validated before it ever reaches a git argument: the value comes from
+   * the vault remote's HEAD, and a branch named like `--upload-pack=...` would otherwise turn a
+   * routine pull into code execution. An unsafe name throws rather than operating on it.
+   */
   async branch(): Promise<string> {
     const r = await git(['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'], this.clone);
-    if (r.ok) return r.stdout.trim().replace(/^origin\//, '');
+    if (r.ok) return assertRef(r.stdout.trim().replace(/^origin\//, ''));
     const local = await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], this.clone);
-    return local.ok ? local.stdout.trim() : 'main';
+    return assertRef(local.ok ? local.stdout.trim() : 'main');
   }
 
   private knownRemoteBranches = new Set<string>();
@@ -153,6 +159,7 @@ export class Repo {
       return await withLock(this.clone, () => this.cycle(opts));
     } catch (e) {
       if (e instanceof LockTimeout) return { ok: false, code: 'lock_timeout', detail: e.message };
+      if (e instanceof UnsafeRef) return { ok: false, code: 'unsafe_ref', detail: e.message };
       throw e;
     }
   }
@@ -176,7 +183,7 @@ export class Repo {
     await opts.write();
     const add = await git(['add', '--', ...opts.paths], this.clone);
     if (!add.ok) {
-      await git(['checkout', '--', ...opts.paths], this.clone);
+      await this.restorePaths(opts.paths);
       return { ok: false, code: 'pull_failed', detail: `git add: ${add.stderr.trim()}` };
     }
     const commit = await git(
@@ -185,12 +192,28 @@ export class Repo {
     );
     if (!commit.ok) {
       await git(['reset', '--quiet', '--', ...opts.paths], this.clone);
-      for (const p of opts.paths) await rm(join(this.clone, p), { force: true });
+      await this.restorePaths(opts.paths);
       return { ok: false, code: 'pull_failed', detail: `git commit: ${commit.stderr.trim()}` };
     }
 
     if (await this.pushWithRetry(branch)) return { ok: true };
     return { ok: false, code: 'committed_not_pushed', detail: `committed locally; the push was rejected ${PUSH_ATTEMPTS} times` };
+  }
+
+  /**
+   * Undo a failed write without leaving the clone dirty. A path that exists in HEAD is a
+   * tracked file (a superseded note being flipped) — restore it; one that doesn't is a fresh
+   * file — remove it. Deleting a tracked file instead would make the clone permanently dirty,
+   * and reconcile never resets.
+   */
+  private async restorePaths(paths: string[]): Promise<void> {
+    for (const p of paths) {
+      if ((await git(['cat-file', '-e', `HEAD:${p}`], this.clone)).ok) {
+        await git(['checkout', '--', p], this.clone);
+      } else {
+        await rm(join(this.clone, p), { force: true });
+      }
+    }
   }
 
   private async pushWithRetry(branch: string): Promise<boolean> {

@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { listNotes, type StoredNote } from './findings.js';
+import { KINDS } from './schema/index.js';
 
 export interface IndexedNote {
   path: string;
@@ -189,9 +190,11 @@ export async function collectNotes(clone: string): Promise<IndexedNote[]> {
   } catch {
     return [];
   }
+  // Every type's directory, derived from KINDS, so a new note type is indexed without touching this.
+  const dirs = [...new Set(Object.values(KINDS).map((k) => k.dir))];
   const out: IndexedNote[] = [];
   for (const slug of slugs) {
-    for (const dir of ['findings', 'trails'] as const) {
+    for (const dir of dirs) {
       for (const n of await listNotes(clone, slug, dir)) out.push(toIndexed(n));
     }
   }

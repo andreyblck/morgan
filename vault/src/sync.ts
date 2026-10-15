@@ -36,8 +36,16 @@ export class Sync {
     const now = Date.now();
     if (now - this.lastPull >= this.ttlMs) {
       this.lastPull = now;
-      const branch = await this.repo.branch();
-      const ok = (await this.repo.remoteHasBranch(branch)) ? await this.repo.pullFfOnly(branch) : await this.repo.remoteReachable();
+      // A hostile remote branch name throws rather than reaching git; a read then serves the
+      // clone as-is and marks it stale instead of failing.
+      const ok = await (async () => {
+        try {
+          const branch = await this.repo.branch();
+          return (await this.repo.remoteHasBranch(branch)) ? await this.repo.pullFfOnly(branch) : await this.repo.remoteReachable();
+        } catch {
+          return false;
+        }
+      })();
       if (ok) {
         this.lastGoodSync = new Date(now).toISOString();
         this.stale = false;

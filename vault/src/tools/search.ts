@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import type { Config } from '../config.js';
 import type { Hit } from '../index.js';
+import { resolveScopedProject } from '../project.js';
 import { loadVaultSettings } from '../projectContext.js';
 import { NOTE_TYPES } from '../schema/index.js';
 import type { Sync } from '../sync.js';
-import { resolveProject } from './status.js';
 
 export const searchInput = {
   query: z.string().min(1).max(500),
@@ -28,17 +28,16 @@ export type ListResult =
 
 /** The scope every read-list shares: this project, or all of them only when the project said so. */
 async function scope(cfg: Config, cross: boolean | undefined): Promise<{ project: string | null } | ListResult> {
-  const { project, reason } = await resolveProject(cfg.projectDir);
-  const settings = await loadVaultSettings(cfg.projectDir);
-  const slug = project?.slug ?? settings.project;
+  const { project, reason } = await resolveScopedProject(cfg);
   if (cross) {
+    const settings = await loadVaultSettings(cfg.projectDir);
     if (!settings.cross_project) {
       return { ok: false, code: 'cross_project_not_allowed', detail: 'set `- cross_project: true` under ## Vault in the project-context override to search other projects' };
     }
     return { project: null };
   }
-  if (!slug) return { ok: false, code: 'project_unknown', detail: reason ?? 'no project' };
-  return { project: slug };
+  if (!project) return { ok: false, code: 'project_unknown', detail: reason ?? 'no project' };
+  return { project: project.slug };
 }
 
 export async function searchNotes(cfg: Config, sync: Sync | null, input: z.infer<z.ZodObject<typeof searchInput>>): Promise<ListResult> {

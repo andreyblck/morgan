@@ -38,11 +38,14 @@ export const marker = {
 
 /**
  * Wrap a body so the reader can see where another session's text starts and stops,
- * and so that text can't forge the closing marker.
+ * and so that text can't forge the closing marker. A run of two or more `<` is broken
+ * with backslashes between every `<` — idempotently, because once broken no run of two
+ * remains, so re-escaping changes nothing and no `<<<` can survive however many `<` the
+ * body stacks.
  */
 export function envelopeBody(ulid: string, body: string): { body: string; escaped: boolean } {
-  const escaped = body.includes('<<<');
-  const safe = body.replace(/<<</g, '<\\<<');
+  const escaped = /<{2,}/.test(body);
+  const safe = body.replace(/<{2,}/g, (run) => run.split('').join('\\'));
   return { body: `${marker.begin(ulid)}\n${safe}\n${marker.end}`, escaped };
 }
 
@@ -80,6 +83,16 @@ export async function resolveNotePath(clone: string, rel: string, opts: { mustEx
   return abs;
 }
 
-export async function readNoteFile(abs: string): Promise<Note | { invalid: string }> {
+export const MAX_NOTE_FILE_BYTES = MAX_NOTE_BYTES;
+
+/**
+ * Read a note only if it is a small regular file. The indexer walks every note in the
+ * clone, so one oversized or symlinked file committed by anyone must not be pulled into
+ * memory or followed off the tree. Returns null to mean "skip this file".
+ */
+export async function readNoteFile(abs: string): Promise<Note | { invalid: string } | null> {
+  const st = await lstat(abs).catch(() => null);
+  if (st === null || !st.isFile()) return null;
+  if (st.size > MAX_NOTE_FILE_BYTES) return { invalid: `note larger than ${MAX_NOTE_FILE_BYTES} bytes` };
   return parseNote(await readFile(abs, 'utf8'));
 }

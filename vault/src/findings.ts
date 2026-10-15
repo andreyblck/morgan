@@ -26,7 +26,7 @@ export async function listNotes(clone: string, projectSlug: string, dir: 'trails
     const ulid = name.slice(0, 26);
     if (!ULID_RE.test(ulid)) continue;
     const note = await readNoteFile(join(clone, rel, name));
-    if ('invalid' in note) continue;
+    if (note === null || 'invalid' in note) continue;
     out.push({ path: `${rel}/${name}`, ulid, frontmatter: note.frontmatter, body: note.body });
   }
   return out;

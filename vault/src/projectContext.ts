@@ -25,7 +25,8 @@ export function parseVaultSection(markdown: string): VaultSettings {
       continue;
     }
     if (!inVault) continue;
-    const m = /^-\s*([a-z_]+)\s*:\s*(.*)$/i.exec(line.trim());
+    // Tolerate the bold labels the shipped skeleton uses (`- **project:** value`) as well as plain.
+    const m = /^-\s*([a-z_]+)\s*:\s*(.*)$/i.exec(line.trim().replace(/\*\*/g, ''));
     if (!m) continue;
     const key = m[1]!.toLowerCase();
     const value = m[2]!.trim();

@@ -1,7 +1,8 @@
 import { cloneDir, type Config } from '../config.js';
-import { git } from '../git.js';
-import { normalizeRemote, type ProjectId } from '../project.js';
+import { type ProjectId, resolveProject, resolveScopedProject } from '../project.js';
 import { Repo } from '../repo.js';
+
+export { resolveProject, resolveScopedProject };
 
 export type StatusResult =
   | { configured: false; reason: string; project_dir: string }
@@ -14,28 +15,11 @@ export type StatusResult =
       project: ProjectId | null;
       project_reason: string | null;
       project_dir: string;
+      dirty: boolean;
       unpushed: number;
       unpushed_foreign: number;
       stale_since: string | null;
     };
-
-export async function resolveProject(projectDir: string): Promise<{ project: ProjectId | null; reason: string | null }> {
-  // The configured URL, not `remote get-url`, which applies insteadOf rewrites. A developer's
-  // local url.<x>.insteadOf is a fetch convenience; the declared remote is the stable identity,
-  // and two developers who disagree on rewrites must still resolve to one project.
-  const r = await git(['config', '--get', 'remote.origin.url'], projectDir);
-  if (!r.ok) {
-    return { project: null, reason: `no git remote "origin" in ${projectDir}; set vault.project in the project-context override` };
-  }
-  const project = normalizeRemote(r.stdout.trim());
-  if (!project) {
-    return {
-      project: null,
-      reason: `remote "origin" is a path, not a URL (${r.stdout.trim()}); set vault.project in the project-context override`,
-    };
-  }
-  return { project, reason: null };
-}
 
 export async function status(cfg: Config, repo?: Repo): Promise<StatusResult> {
   if (cfg.repo === null) {
@@ -43,7 +27,8 @@ export async function status(cfg: Config, repo?: Repo): Promise<StatusResult> {
   }
   const r = repo ?? new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
   const error = await r.ensure();
-  const { project, reason } = await resolveProject(cfg.projectDir);
+  const { project, reason } = await resolveScopedProject(cfg);
+  let dirty = false;
   let unpushed = 0;
   let foreign = 0;
   if (error === null) {
@@ -52,6 +37,7 @@ export async function status(cfg: Config, repo?: Repo): Promise<StatusResult> {
     const pending = await r.unpushed();
     unpushed = pending.length;
     foreign = rec.foreign;
+    dirty = await r.dirty();
   }
   return {
     configured: true,
@@ -62,6 +48,7 @@ export async function status(cfg: Config, repo?: Repo): Promise<StatusResult> {
     project,
     project_reason: reason,
     project_dir: cfg.projectDir,
+    dirty,
     unpushed,
     unpushed_foreign: foreign,
     stale_since: null,

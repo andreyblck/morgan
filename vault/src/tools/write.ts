@@ -9,9 +9,9 @@ import { git } from '../git.js';
 import { parseNote, serializeNote, type Frontmatter } from '../notes.js';
 import { loadVaultSettings } from '../projectContext.js';
 import { Repo } from '../repo.js';
+import { resolveScopedProject } from '../project.js';
 import { KINDS, NOTE_TYPES, type NoteType } from '../schema/index.js';
 import { ulid } from '../ulid.js';
-import { resolveProject } from './status.js';
 
 export const writeInput = {
   type: z.enum(NOTE_TYPES),
@@ -86,7 +86,7 @@ export async function writeNote(cfg: Config, input: { type: NoteType; fields: Re
   });
   if (refusal) return refuse(refusal.code, refusal.detail);
 
-  const { project, reason } = await resolveProject(cfg.projectDir);
+  const { project, reason } = await resolveScopedProject(cfg);
   if (!project) return refuse('project_unknown', reason ?? 'no project');
 
   const repo = sharedRepo ?? new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
@@ -133,7 +133,7 @@ export async function writeNote(cfg: Config, input: { type: NoteType; fields: Re
       // the same whichever clone writes them first, so two first writes rebase cleanly.
       if (!(await exists(join(repo.clone, projectPath)))) {
         await mkdir(join(repo.clone, dirname(projectPath)), { recursive: true });
-        await writeFile(join(repo.clone, projectPath), serializeNote({ slug: project.slug, remotes: [project.remote] }, `# ${project.slug}\n`));
+        await writeFile(join(repo.clone, projectPath), serializeNote({ slug: project.slug, remotes: project.remote ? [project.remote] : [] }, `# ${project.slug}\n`));
         paths.push(projectPath);
       }
       if (!(await exists(join(repo.clone, '.gitignore')))) {
