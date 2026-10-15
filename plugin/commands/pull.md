@@ -45,7 +45,7 @@ If no task was specified, STOP and ask: "What are we pulling? Point me to the wo
 - [ ] Dependencies on prior items are satisfied.
 - [ ] You've read the surrounding code — patterns, naming, structure.
 - [ ] Pre-commit hooks exist (lint, type check, format, tests). If missing and the work is real, set them up first — then prove they bite before trusting them.
-- [ ] Governing docs at hand — `.camp/` artefacts, project `CLAUDE.md`, project-specific references.
+- [ ] Governing docs read, not remembered — `.camp/scope.md` and `.camp/case.md` by name, project `CLAUDE.md`, project-specific references.
 
 If any are unclear, stop. Don't `/pull` without a formula and prep.
 

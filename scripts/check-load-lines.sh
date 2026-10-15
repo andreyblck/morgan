@@ -6,11 +6,15 @@
 # reference is a whole-file read paid on every invocation of that command, so a load
 # line that grows costs real context on work that never touches the reference.
 #
-# Three hard failures:
+# Four hard failures:
 #   1. A command has no "## Load skill" section.
 #   2. A load line names a reference file that doesn't exist (the 0.1.13 failure mode,
 #      which resolved command pointers but never resolved reference pointers).
-#   3. The count of UNCITED pairs rises above the baseline below.
+#   3. A command body cites a reference its load line doesn't name — the pointer points
+#      at a file the command never reads. This is the reverse of UNCITED and the failure
+#      mode 0.1.17 introduced: it trimmed `building` out of /clean's load line while two
+#      lines of /clean still sent the reader to it. A trim has to take the pointers with it.
+#   4. The count of UNCITED pairs rises above the baseline below.
 #
 # "Uncited" means: the command loads the reference, but nowhere outside the Load
 # section does the body cite it as a reference — no `name` in backticks, no
@@ -29,6 +33,8 @@ BASELINE=11
 
 fail=0
 uncited=0
+
+allrefs=$(find plugin/skills/morgan/references -name '*.md' -exec basename {} .md \; | sort)
 
 for f in plugin/commands/*.md; do
   cmd=$(basename "$f" .md)
@@ -56,6 +62,17 @@ for f in plugin/commands/*.md; do
     if ! printf '%s' "$body" | grep -qE "\`$r\`|references/$r\.md"; then
       echo "UNCITED   /$cmd loads '$r' but never cites it outside the Load section"
       uncited=$((uncited + 1))
+    fi
+  done
+
+  # Reverse direction: the body points at a reference the load line never names, so the
+  # command sends the reader to a file it doesn't read. Hard failure, no baseline.
+  for r in $allrefs; do
+    if printf '%s' "$body" | grep -qE "\`$r\`|references/$r\.md"; then
+      if ! printf '%s\n' "$refs" | grep -qx "$r"; then
+        echo "ORPHANED  /$cmd cites '$r' but its load line doesn't name it"
+        fail=1
+      fi
     fi
   done
 done

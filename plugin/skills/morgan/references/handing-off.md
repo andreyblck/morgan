@@ -197,6 +197,17 @@ It earns its own file because the most useful part of unfinished work never reac
 
 **Read on resume.** This is the file `/break <task>` loads to put the next agent back on the trail, and the file skill recovery scans to surface open work at session start. Keep **Open / untried** honest — on a cold start it's read first.
 
+Find the parked jobs by matching on the section, so the cost is the number of open trails and not the size of the directory:
+
+```bash
+find .camp -maxdepth 1 \( -name 'track-*.md' -o -name 'trail-*.md' \) 2>/dev/null \
+  | while read -r f; do
+      awk '/^## Open \/ untried/{o=1;next} /^## /{o=0} o&&NF{print FILENAME; exit}' "$f"
+    done
+```
+
+One line per parked job, nothing else. Don't reach for a directory listing — `.camp/` only grows, and a listing you truncate reads exactly like an empty one.
+
 ---
 
 ## Anti-patterns

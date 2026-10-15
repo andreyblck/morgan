@@ -272,6 +272,8 @@ For pre-1.0 releases (`0.X.Y`), treat any breaking change as a minor bump and an
   A reference named in a `## Load skill` line is a whole-file read paid on every invocation of that command. Load lines only ever grow, because nothing stops a reference being added "for completeness" to a command that never acts on it — that's how `/pivot` came to load four references and name one. The rule: **a reference belongs in a load line only if the command body names the decision it governs.**
 
   That rule can't be checked mechanically, so the script checks a weaker proxy — does the body cite the reference *as* a reference, in backticks or by path, outside the Load section — and gates on the count not rising. A command can act on a reference without naming it (`/track` loads `tracing` and its whole procedure *is* the tracing method), so an uncited pair is a question, not a verdict. Lower the baseline when a trim lands; never raise it to make a push go through.
+
+  The same check runs the pointer in reverse, and that half is a hard failure with no baseline: a command body that cites a reference its own load line doesn't name is sending the reader to a file the command never reads. That's what a trim leaves behind when it takes the load line and forgets the prose — 0.1.17 dropped `building` from `/clean` while two lines of `/clean` still pointed at it, and the ratchet couldn't see it because it only looked the other way. **A trim takes the pointers with it.**
 - Originality gate: see CLAUDE.md.
 
 ---

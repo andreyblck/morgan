@@ -44,6 +44,8 @@ If no goal was specified, STOP and use the AskUserQuestion tool to ask: What are
 
 Don't accept the first answer. Dig deeper.
 
+If `/scout` already went after this question, its report is at `.camp/scout-<topic>.md` — read it before you start asking. Research you repeat is research you paid for twice.
+
 **Ask:**
 - What problem are we solving?
 - How do we know it's a problem? Quantify it.

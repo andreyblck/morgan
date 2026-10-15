@@ -41,6 +41,8 @@ Before decomposing:
 
 ### 1. Verify the formula
 
+Read it before you check it — `.camp/scope.md` unless the user named another location. Decomposing from a half-remembered formula is how items drift off the scope that was agreed.
+
 - [ ] Problem is clearly defined.
 - [ ] Scope boundaries are explicit (IN and OUT).
 - [ ] Success criteria are measurable.
