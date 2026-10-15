@@ -12,7 +12,7 @@ $$ | \_/ $$ | $$$$$$  |$$ |  $$ |\$$$$$$  |$$ |  $$ |$$ | \$$ |
 ```
 
 engineering discipline for Claude Code
-0.1.20 · 1 skill · 13 commands · 7 agents · 15 references
+0.2.0 · 1 skill · 13 commands · 7 agents · 16 references · 1 server
 
 *  *  *
 

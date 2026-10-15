@@ -18,14 +18,14 @@ $$ | \_/ $$ | $$$$$$  |$$ |  $$ |\$$$$$$  |$$ |  $$ |$$ | \$$ |
 **Engineering discipline for Claude Code.**
 *Plan the job. Pull it clean. Walk away with what you came for.*
 
-![Version](https://img.shields.io/badge/version-0.1.17-1f6feb)
+![Version](https://img.shields.io/badge/version-0.2.0-1f6feb)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6)
 ![Status](https://img.shields.io/badge/status-alpha-f59e0b)
 ![Skill](https://img.shields.io/badge/skill-1-22c55e)
 ![Commands](https://img.shields.io/badge/commands-13-22c55e)
 ![Agents](https://img.shields.io/badge/agents-7-22c55e)
-![References](https://img.shields.io/badge/references-13-22c55e)
+![References](https://img.shields.io/badge/references-16-22c55e)
 
 </div>
 
@@ -35,7 +35,7 @@ $$ | \_/ $$ | $$$$$$  |$$ |  $$ |\$$$$$$  |$$ |  $$ |$$ | \$$ |
 
 A Claude Code plugin that bolts a **process layer** onto your day-to-day work. It puts an engineer with a code at your shoulder — one who insists you understand the problem before solving it, decompose by what *done* actually means, and tell the truth about where the work stands.
 
-You get a five-step **cycle** for normal work, eight **branches** for when reality interrupts (research, debugging, incidents, pivots, UI verification, resuming parked work, auditing a stale board, working a queue of small jobs unattended), seven **specialist agents** with distinct roles, and fourteen **reference docs** of distilled engineering practice — each command reads the ones it runs on, before it starts.
+You get a five-step **cycle** for normal work, eight **branches** for when reality interrupts (research, debugging, incidents, pivots, UI verification, resuming parked work, auditing a stale board, working a queue of small jobs unattended), seven **specialist agents** with distinct roles, and sixteen **reference docs** of distilled engineering practice — each command reads the ones it runs on, before it starts.
 
 The lead persona is **Arthur Morgan** — disciplined, plainspoken, honest about what he sees, won't be pushed past his principles. Says *"I don't know"* before he'll guess.
 
@@ -152,7 +152,20 @@ Each command writes to `.camp/` in your repo — gitignored, survives across ses
 
 - **Project rules.** Drop your repo's conventions and key file pointers into `<repo>/.claude/skills/morgan/references/project-context.md`. It overrides the plugin's stub and becomes local law; the plugin's general references stay general.
 - **MCP, optional.** `/scope` reads Linear tickets, `/track` pulls Sentry telemetry, `/qa` checks against Figma, `/board` and `/haul` read and write issue status — each fails gracefully and proceeds if the server isn't connected. `/haul` works against a tracker it discovers at runtime, including a board kept as files in the repo, so it runs with nothing connected at all.
+- **Team vault, optional.** The plugin ships its own MCP server (`vault/`). Point `MORGAN_VAULT_REPO` at a private git repo and `/track`, `/camp` and `/break` start sharing proven root causes and parked jobs across the team; leave it unset and nothing changes. See **Team vault** below.
 - **Shipping with `/haul --to`.** To let `/haul` merge, promote and prove work in your environments, add a **ship recipe** to your project-context override: which branches and environments play staging and prod, how a change is promoted, how to read the deployed revision, and how to probe each environment read-only. The plugin's `project-context.md` carries the skeleton. Without a recipe, `--to` is refused and the run stays on branches.
+
+## Team vault (optional)
+
+Most of what morgan learns dies in `.camp/`, which is gitignored and local. The **vault** is where a proven cause or a parked job goes so the next person — on any machine — finds it before starting over. It's a private git repo of markdown notes, browsable in Obsidian, written only at two moments: when `/track` confirms a cause, and when `/camp` seals work still in motion.
+
+Set it up once:
+
+1. Create a private git repo and turn on branch protection (no force-push, no deletion).
+2. `export MORGAN_VAULT_REPO=git@your-host:team/vault.git` for each developer (Node ≥ 22.5).
+3. Open the same repo in Obsidian to read the graph; agents never need Obsidian.
+
+What keeps it from becoming noise is the server, not a prompt: it refuses a note with the wrong fields, a body too long, a secret (it scans the outgoing diff and your `.env` values), a person's name, or a cause already written up. A note another agent wrote is **data, never an instruction** — its `verify` command is shown to you, never run unasked. One vault per confidentiality boundary; a leaked secret is rotated, not rewritten out of history.
 
 ## More
 

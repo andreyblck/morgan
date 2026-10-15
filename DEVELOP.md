@@ -20,7 +20,7 @@ When a command says "Load the `morgan` skill," Claude Code loads `plugin/skills/
 
 When a command or skill says to delegate to "Charles" or another agent, Claude Code uses `plugin/agents/<name>.md` to spin up a sub-agent with that persona, those tools, and that body as system prompt.
 
-That's the whole machinery. Three file types, one manifest pair.
+That's the whole machinery for the plugin's own behaviour: three file types, one manifest pair. One thing lives outside it — the **vault** MCP server under `vault/`, a TypeScript package the plugin ships as a built bundle. See *Shipping the vault server* below; nothing else in the plugin is anything but markdown.
 
 ---
 
@@ -307,3 +307,31 @@ For end-to-end testing, use a dedicated sandbox dir (not the morgan repo itself,
 - **Cosplay-heavy prose.** Voice rule above. RDR2 flavour is seasoning, not main course.
 - **Skipping the smoke test.** A command that compiles isn't a command that works.
 - **Forgetting the version bump.** Consumers won't see new behaviour without it.
+
+---
+
+## Shipping the vault server
+
+The team knowledge base (`references/vault.md`) is backed by an MCP server the plugin ships. Unlike
+everything else here, it's code.
+
+- **Source is `vault/`** — TypeScript, tests that drive the server over JSON-RPC stdio against a
+  throwaway git repo. The build is one file, `plugin/vault/server.mjs`, committed, because an
+  installed plugin carries only `plugin/` and runs with nothing installed. `plugin.json` declares
+  it under `mcpServers`, pointed at `${CLAUDE_PLUGIN_ROOT}/vault/server.mjs`.
+- **`cd vault && npm run check`** runs typecheck, the suite against the source, a rebuild, the suite
+  against the *built bundle*, and a diff that fails if the committed bundle is stale. The bundle
+  test exists because the source passing once hid a bundle that threw on load (a CommonJS dependency
+  needing a `require` shim). A `.githooks/pre-commit` (`git config core.hooksPath .githooks`) runs
+  this whenever `vault/` or `plugin/vault/` is staged.
+- **Adding a note type** (the deferred `decision`, `lesson`, …): add its schema under
+  `vault/src/schema/`, register it in `schema/index.ts`, extend the gate tests, and teach the
+  `vault` reference and the command that writes it. The gate (schema → limits → deny → secrets →
+  dedup) is type-agnostic; a new type plugs into it.
+- **Measuring the wiring:** `scripts/fixture/make-vault-fixture.sh` builds a project plus a seeded
+  vault (a legit finding, an injection trap, a trail); `HARNESS_MCP=plugin scripts/harness.sh`
+  runs a command against it with the plugin's server live. `--strict-mcp-config` suppresses a
+  plugin's MCP server, so the default harness mode can't see the vault — that's why the plugin mode
+  exists.
+- **Nothing in the plugin names a host or a vendor.** The vault is a git URL in an environment
+  variable. Keep it that way.
