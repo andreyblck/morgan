@@ -1,5 +1,5 @@
 import { appendFile, mkdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 
 /**
  * One line per tool call: time, tool, outcome, duration. Never a note body and never
@@ -7,10 +7,6 @@ import { dirname, join } from 'node:path';
  */
 export class Log {
   constructor(private readonly file: string | null) {}
-
-  static forClone(cloneDir: string | null): Log {
-    return new Log(cloneDir ? join(cloneDir, 'server.log') : null);
-  }
 
   async line(tool: string, outcome: string, startedAt: number): Promise<void> {
     if (!this.file) return;

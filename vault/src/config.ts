@@ -24,8 +24,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, cwd: string = p
   };
 }
 
+const repoKey = (repo: string): string => createHash('sha256').update(repo).digest('hex').slice(0, 12);
+
 /** One clone per vault repo, keyed by the repo string so two vaults never share a directory. */
 export function cloneDir(cfg: Config & { repo: string }): string {
-  const key = createHash('sha256').update(cfg.repo).digest('hex').slice(0, 12);
-  return join(cfg.dataDir, 'vault', key);
+  return join(cfg.dataDir, 'vault', repoKey(cfg.repo));
+}
+
+/** Beside the clone, never inside it: git refuses to clone into a directory that already has a file. */
+export function logFile(cfg: Config & { repo: string }): string {
+  return join(cfg.dataDir, 'vault', `${repoKey(cfg.repo)}.log`);
 }

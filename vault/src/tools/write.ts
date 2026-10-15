@@ -2,8 +2,10 @@ import { mkdir, writeFile, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { cloneDir, type Config } from '../config.js';
+import { runGate } from '../gate/index.js';
 import { git } from '../git.js';
 import { serializeNote, type Frontmatter } from '../notes.js';
+import { loadVaultSettings } from '../projectContext.js';
 import { Repo } from '../repo.js';
 import { SERVER_FIELDS, TRAIL_SECTIONS, trailFields } from '../schema/trail.js';
 import { ulid } from '../ulid.js';
@@ -59,6 +61,17 @@ export async function writeNote(cfg: Config, input: { type: 'trail'; fields: Rec
   const sectionError = checkSections(input.body, TRAIL_SECTIONS);
   if (sectionError) return refuse('schema_error', sectionError);
 
+  const author = await projectAuthor(cfg.projectDir);
+  const settings = await loadVaultSettings(cfg.projectDir);
+  const refusal = await runGate({
+    text: serializeNote(parsed.data, input.body),
+    body: input.body,
+    projectDir: cfg.projectDir,
+    gitUserName: author.name === 'unknown' ? null : author.name,
+    deny: settings.deny,
+  });
+  if (refusal) return refuse(refusal.code, refusal.detail);
+
   const { project, reason } = await resolveProject(cfg.projectDir);
   if (!project) return refuse('project_unknown', reason ?? 'no project');
 
@@ -68,7 +81,6 @@ export async function writeNote(cfg: Config, input: { type: 'trail'; fields: Rec
 
   const id = ulid();
   const head = await projectHead(cfg.projectDir);
-  const author = await projectAuthor(cfg.projectDir);
   const created = new Date().toISOString();
 
   const frontmatter: Frontmatter = {

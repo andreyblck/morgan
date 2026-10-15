@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { cloneDir, loadConfig } from './config.js';
+import { loadConfig, logFile } from './config.js';
 import { Log } from './log.js';
 import { readInput, readNote } from './tools/read.js';
 import { status } from './tools/status.js';
@@ -14,7 +14,7 @@ const INSTRUCTIONS = [
 ].join('\n');
 
 const cfg = loadConfig();
-const log = Log.forClone(cfg.repo ? cloneDir({ ...cfg, repo: cfg.repo }) : null);
+const log = new Log(cfg.repo ? logFile({ ...cfg, repo: cfg.repo }) : null);
 
 const server = new McpServer({ name: 'morgan-vault', version: '0.2.0' }, { instructions: INSTRUCTIONS });
 

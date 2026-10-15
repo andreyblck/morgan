@@ -5723,7 +5723,7 @@ var require_contains = __commonJS({
         function validateItemsWithCount() {
           const schValid = gen.name("_valid");
           const count = gen.let("count", 0);
-          validateItems(schValid, () => gen.if(schValid, () => checkLimits(count)));
+          validateItems(schValid, () => gen.if(schValid, () => checkLimits2(count)));
         }
         function validateItems(_valid, block) {
           gen.forRange("i", 0, len, (i) => {
@@ -5736,7 +5736,7 @@ var require_contains = __commonJS({
             block();
           });
         }
-        function checkLimits(count) {
+        function checkLimits2(count) {
           gen.code((0, codegen_1._)`${count}++`);
           if (max === void 0) {
             gen.if((0, codegen_1._)`${count} >= ${min}`, () => gen.assign(valid, true).break());
@@ -43938,22 +43938,22 @@ function loadConfig(env = process.env, cwd = process.cwd()) {
     projectDir: clean(env.CLAUDE_PROJECT_DIR) || cwd
   };
 }
+var repoKey = (repo) => createHash("sha256").update(repo).digest("hex").slice(0, 12);
 function cloneDir(cfg2) {
-  const key = createHash("sha256").update(cfg2.repo).digest("hex").slice(0, 12);
-  return join(cfg2.dataDir, "vault", key);
+  return join(cfg2.dataDir, "vault", repoKey(cfg2.repo));
+}
+function logFile(cfg2) {
+  return join(cfg2.dataDir, "vault", `${repoKey(cfg2.repo)}.log`);
 }
 
 // src/log.ts
 import { appendFile, mkdir } from "node:fs/promises";
-import { dirname, join as join2 } from "node:path";
-var Log = class _Log {
+import { dirname } from "node:path";
+var Log = class {
   constructor(file2) {
     this.file = file2;
   }
   file;
-  static forClone(cloneDir2) {
-    return new _Log(cloneDir2 ? join2(cloneDir2, "server.log") : null);
-  }
   async line(tool, outcome, startedAt) {
     if (!this.file) return;
     const ms = Date.now() - startedAt;
@@ -43969,7 +43969,7 @@ var Log = class _Log {
 // src/notes.ts
 var import_yaml = __toESM(require_dist2(), 1);
 import { lstat, readFile, realpath } from "node:fs/promises";
-import { isAbsolute, join as join3, resolve, sep } from "node:path";
+import { isAbsolute, join as join2, resolve, sep } from "node:path";
 var MAX_NOTE_BYTES = 64 * 1024;
 function serializeNote(frontmatter, body) {
   const fm = (0, import_yaml.stringify)(frontmatter, { lineWidth: 0 }).trimEnd();
@@ -44014,10 +44014,10 @@ async function resolveNotePath(clone2, rel, opts) {
   if (isAbsolute(rel) || rel.includes("\0")) throw new PathRefused("absolute path");
   if (!rel.endsWith(".md")) throw new PathRefused("not a markdown file");
   const cloneReal = await realpath(clone2);
-  const root = join3(cloneReal, "projects");
+  const root = join2(cloneReal, "projects");
   const abs = resolve(cloneReal, rel);
   if (!abs.startsWith(root + sep)) throw new PathRefused("outside projects/");
-  const parentReal = await realpath(join3(abs, "..")).catch(() => null);
+  const parentReal = await realpath(join2(abs, "..")).catch(() => null);
   if (parentReal === null) {
     if (opts.mustExist) throw new PathRefused("no such directory");
     return abs;
@@ -44038,7 +44038,7 @@ async function readNoteFile(abs) {
 
 // src/repo.ts
 import { access, mkdir as mkdir2, rm as rm2 } from "node:fs/promises";
-import { dirname as dirname2, join as join5 } from "node:path";
+import { dirname as dirname2, join as join4 } from "node:path";
 
 // src/git.ts
 import { execFile } from "node:child_process";
@@ -44062,7 +44062,7 @@ function git(args, cwd) {
 
 // src/lock.ts
 import { open as open2, readFile as readFile2, rm } from "node:fs/promises";
-import { join as join4 } from "node:path";
+import { join as join3 } from "node:path";
 var LOCK = ".vault.lock";
 var WAIT_MS = 3e4;
 var POLL_MS = 100;
@@ -44075,7 +44075,7 @@ function pidAlive(pid) {
   }
 }
 async function withLock(cloneDir2, fn) {
-  const path = join4(cloneDir2, LOCK);
+  const path = join3(cloneDir2, LOCK);
   const deadline = Date.now() + WAIT_MS;
   for (; ; ) {
     try {
@@ -44116,10 +44116,10 @@ var Repo = class {
   url;
   /** Clone on first use. Returns the error text when that can't be done. */
   async ensure() {
-    if (await exists(join5(this.clone, ".git"))) return null;
+    if (await exists(join4(this.clone, ".git"))) return null;
     await mkdir2(dirname2(this.clone), { recursive: true });
     return withLock(dirname2(this.clone), async () => {
-      if (await exists(join5(this.clone, ".git"))) return null;
+      if (await exists(join4(this.clone, ".git"))) return null;
       const r = await git(["clone", "--quiet", "--", this.url, this.clone], dirname2(this.clone));
       return r.ok ? null : `clone failed: ${r.stderr.trim() || `git exited ${r.code}`}`;
     });
@@ -44138,7 +44138,7 @@ var Repo = class {
     return (await git(["rev-parse", "--verify", "--quiet", "HEAD"], this.clone)).ok;
   }
   async midRebase() {
-    return await exists(join5(this.clone, ".git", "rebase-merge")) || await exists(join5(this.clone, ".git", "rebase-apply"));
+    return await exists(join4(this.clone, ".git", "rebase-merge")) || await exists(join4(this.clone, ".git", "rebase-apply"));
   }
   async abortRebase() {
     await git(["rebase", "--abort"], this.clone);
@@ -44200,7 +44200,7 @@ ${TRAILER}/0.2.0`, "--", ...opts.paths],
       );
       if (!commit.ok) {
         await git(["reset", "--quiet", "--", ...opts.paths], this.clone);
-        for (const p of opts.paths) await rm2(join5(this.clone, p), { force: true });
+        for (const p of opts.paths) await rm2(join4(this.clone, p), { force: true });
         return { ok: false, code: "pull_failed", detail: `git commit: ${commit.stderr.trim()}` };
       }
       if (await this.pushWithRetry(branch)) return { ok: true };
@@ -44347,7 +44347,169 @@ async function status(cfg2) {
 
 // src/tools/write.ts
 import { mkdir as mkdir3, writeFile, access as access2 } from "node:fs/promises";
-import { dirname as dirname3, join as join6 } from "node:path";
+import { dirname as dirname3, join as join7 } from "node:path";
+
+// src/gate/deny.ts
+import { userInfo } from "node:os";
+function escapeRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function checkDeny(text2, ctx) {
+  const user = (() => {
+    try {
+      return userInfo().username;
+    } catch {
+      return null;
+    }
+  })();
+  if (user) {
+    const home = new RegExp(`(^|[\\s"'\`(])/(Users|home)/${escapeRe(user)}(/|\\b)`);
+    if (home.test(text2)) return { code: "personal_data", detail: "home path of the current user" };
+  }
+  if (ctx.gitUserName && ctx.gitUserName.length >= 3) {
+    const name = new RegExp(`(^|\\W)${escapeRe(ctx.gitUserName)}(\\W|$)`, "i");
+    if (name.test(text2)) return { code: "personal_data", detail: "git user name of the author" };
+  }
+  for (const term of ctx.deny) {
+    if (term.length < 2) continue;
+    if (new RegExp(`(^|\\W)${escapeRe(term)}(\\W|$)`, "i").test(text2)) {
+      return { code: "personal_data", detail: `matches the project's deny list` };
+    }
+  }
+  return null;
+}
+
+// src/gate/limits.ts
+var MAX_BODY_CHARS = 4e3;
+var MAX_FENCE_LINES = 30;
+function checkLimits(body) {
+  if (body.length > MAX_BODY_CHARS) {
+    return { code: "body_too_long", detail: `${body.length} chars, limit ${MAX_BODY_CHARS}` };
+  }
+  let open3 = null;
+  const lines = body.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*(```|~~~)/.test(lines[i])) {
+      if (open3 === null) {
+        open3 = i;
+      } else {
+        const inner = i - open3 - 1;
+        if (inner > MAX_FENCE_LINES) {
+          return { code: "fence_too_long", detail: `fenced block of ${inner} lines at line ${open3 + 1}, limit ${MAX_FENCE_LINES}` };
+        }
+        open3 = null;
+      }
+    }
+  }
+  if (open3 !== null && lines.length - open3 - 1 > MAX_FENCE_LINES) {
+    return { code: "fence_too_long", detail: `unclosed fence at line ${open3 + 1} runs ${lines.length - open3 - 1} lines, limit ${MAX_FENCE_LINES}` };
+  }
+  return null;
+}
+
+// src/gate/secrets.ts
+import { readdir, readFile as readFile3 } from "node:fs/promises";
+import { join as join5 } from "node:path";
+var SECRET_RULES = [
+  { name: "aws_access_key", re: /\b(AKIA|ASIA)[0-9A-Z]{16}\b/ },
+  { name: "github_fine_grained", re: /\bgithub_pat_[0-9A-Za-z]{22}_[0-9A-Za-z]{59}\b/ },
+  { name: "github_token", re: /\bgh[pousr]_[0-9A-Za-z]{36,}\b/ },
+  { name: "slack_token", re: /\bxox[abpr]-[0-9A-Za-z-]{10,}\b/ },
+  { name: "stripe_key", re: /\b[sr]k_(live|test)_[0-9A-Za-z]{20,}\b/ },
+  { name: "private_key", re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
+  { name: "jwt", re: /\beyJ[0-9A-Za-z_-]{8,}\.eyJ[0-9A-Za-z_-]{8,}\.[0-9A-Za-z_-]{8,}\b/ },
+  { name: "url_credentials", re: /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]{4,}@[^\s/]+/i },
+  { name: "generic_credential", re: /\b(api[_-]?key|secret|token|password|passwd)\b\s*[:=]\s*["']?[^\s"']{8,}/i }
+];
+function matchSecretRules(text2) {
+  for (const rule of SECRET_RULES) {
+    if (rule.re.test(text2)) return { code: "secret_detected", detail: `matches rule ${rule.name}` };
+  }
+  return null;
+}
+var MIN_ENV_VALUE = 8;
+async function loadEnvValues(projectDir) {
+  let names;
+  try {
+    names = (await readdir(projectDir)).filter((n) => n === ".env" || n.startsWith(".env."));
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const file2 of names) {
+    let text2;
+    try {
+      text2 = await readFile3(join5(projectDir, file2), "utf8");
+    } catch {
+      continue;
+    }
+    for (const raw of text2.split("\n")) {
+      const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(raw);
+      if (!m) continue;
+      let value = m[2].trim();
+      if (/^(["']).*\1$/.test(value)) value = value.slice(1, -1);
+      value = value.replace(/\s+#.*$/, "");
+      if (value.length >= MIN_ENV_VALUE) out.push({ key: m[1], value, file: file2 });
+    }
+  }
+  return out;
+}
+function matchEnvValues(text2, env) {
+  for (const e of env) {
+    if (text2.includes(e.value)) return { code: "secret_detected", detail: `env_value: the value of ${e.key} from ${e.file}` };
+  }
+  return null;
+}
+
+// src/gate/index.ts
+async function runGate(input2) {
+  const limits = checkLimits(input2.body);
+  if (limits) return limits;
+  const deny = checkDeny(input2.text, { gitUserName: input2.gitUserName, deny: input2.deny });
+  if (deny) return deny;
+  try {
+    const rule = matchSecretRules(input2.text);
+    if (rule) return rule;
+    const env = matchEnvValues(input2.text, await loadEnvValues(input2.projectDir));
+    if (env) return env;
+  } catch (e) {
+    return { code: "scan_failed", detail: `secret scan did not run: ${e.message}` };
+  }
+  return null;
+}
+
+// src/projectContext.ts
+import { readFile as readFile4 } from "node:fs/promises";
+import { join as join6 } from "node:path";
+var OVERRIDE_PATH = ".claude/skills/morgan/references/project-context.md";
+function parseVaultSection(markdown) {
+  const settings = { project: null, cross_project: false, deny: [] };
+  const lines = markdown.split("\n");
+  let inVault = false;
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (/^##\s/.test(line)) {
+      inVault = /^##\s+vault\s*$/i.test(line);
+      continue;
+    }
+    if (!inVault) continue;
+    const m = /^-\s*([a-z_]+)\s*:\s*(.*)$/i.exec(line.trim());
+    if (!m) continue;
+    const key = m[1].toLowerCase();
+    const value = m[2].trim();
+    if (key === "project" && /^[a-z0-9-]+$/.test(value)) settings.project = value;
+    else if (key === "cross_project") settings.cross_project = /^(true|yes)$/i.test(value);
+    else if (key === "deny") settings.deny = value.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  return settings;
+}
+async function loadVaultSettings(projectDir) {
+  try {
+    return parseVaultSection(await readFile4(join6(projectDir, OVERRIDE_PATH), "utf8"));
+  } catch {
+    return { project: null, cross_project: false, deny: [] };
+  }
+}
 
 // src/schema/trail.ts
 var SERVER_FIELDS = ["type", "project", "author", "created", "sha", "branch"];
@@ -44398,6 +44560,16 @@ async function writeNote(cfg2, input2) {
   }
   const sectionError = checkSections(input2.body, TRAIL_SECTIONS);
   if (sectionError) return refuse("schema_error", sectionError);
+  const author = await projectAuthor(cfg2.projectDir);
+  const settings = await loadVaultSettings(cfg2.projectDir);
+  const refusal = await runGate({
+    text: serializeNote(parsed.data, input2.body),
+    body: input2.body,
+    projectDir: cfg2.projectDir,
+    gitUserName: author.name === "unknown" ? null : author.name,
+    deny: settings.deny
+  });
+  if (refusal) return refuse(refusal.code, refusal.detail);
   const { project, reason } = await resolveProject(cfg2.projectDir);
   if (!project) return refuse("project_unknown", reason ?? "no project");
   const repo = new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
@@ -44405,7 +44577,6 @@ async function writeNote(cfg2, input2) {
   if (cloneError) return refuse("not_ready", cloneError);
   const id = ulid3();
   const head = await projectHead(cfg2.projectDir);
-  const author = await projectAuthor(cfg2.projectDir);
   const created = (/* @__PURE__ */ new Date()).toISOString();
   const frontmatter = {
     type: input2.type,
@@ -44424,18 +44595,18 @@ async function writeNote(cfg2, input2) {
     message: `vault: ${input2.type} ${id} (${project.slug})`,
     author,
     write: async () => {
-      if (!await exists2(join6(repo.clone, projectPath))) {
-        await mkdir3(join6(repo.clone, dirname3(projectPath)), { recursive: true });
-        await writeFile(join6(repo.clone, projectPath), serializeNote({ slug: project.slug, remotes: [project.remote], created }, `# ${project.slug}
+      if (!await exists2(join7(repo.clone, projectPath))) {
+        await mkdir3(join7(repo.clone, dirname3(projectPath)), { recursive: true });
+        await writeFile(join7(repo.clone, projectPath), serializeNote({ slug: project.slug, remotes: [project.remote], created }, `# ${project.slug}
 `));
         paths.push(projectPath);
       }
-      if (!await exists2(join6(repo.clone, ".gitignore"))) {
-        await writeFile(join6(repo.clone, ".gitignore"), ".obsidian/\n");
+      if (!await exists2(join7(repo.clone, ".gitignore"))) {
+        await writeFile(join7(repo.clone, ".gitignore"), ".obsidian/\n");
         paths.push(".gitignore");
       }
-      await mkdir3(join6(repo.clone, dirname3(notePath)), { recursive: true });
-      await writeFile(join6(repo.clone, notePath), serializeNote(frontmatter, input2.body));
+      await mkdir3(join7(repo.clone, dirname3(notePath)), { recursive: true });
+      await writeFile(join7(repo.clone, notePath), serializeNote(frontmatter, input2.body));
     }
   });
   if (!result.ok) return refuse(result.code, result.detail);
@@ -44450,7 +44621,7 @@ var INSTRUCTIONS = [
   "When MORGAN_VAULT_REPO is unset every tool answers not_configured; carry on with .camp/ as usual."
 ].join("\n");
 var cfg = loadConfig();
-var log = Log.forClone(cfg.repo ? cloneDir({ ...cfg, repo: cfg.repo }) : null);
+var log = new Log(cfg.repo ? logFile({ ...cfg, repo: cfg.repo }) : null);
 var server = new McpServer({ name: "morgan-vault", version: "0.2.0" }, { instructions: INSTRUCTIONS });
 var text = (value) => ({ content: [{ type: "text", text: JSON.stringify(value, null, 2) }] });
 server.registerTool(

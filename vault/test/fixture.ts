@@ -4,10 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-export const git = (args: string[], cwd: string): string =>
-  execFileSync('git', args, { cwd, stdio: 'pipe', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
-    .toString()
-    .trim();
+export const git = (args: string[], cwd: string): string => {
+  try {
+    return execFileSync('git', args, { cwd, stdio: 'pipe', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
+      .toString()
+      .trim();
+  } catch (e) {
+    const err = e as { stderr?: Buffer; message: string };
+    throw new Error(`git ${args.join(' ')} in ${cwd}: ${err.stderr?.toString().trim() || err.message}`);
+  }
+};
 
 export interface Fixture {
   dir: string;
