@@ -41,7 +41,8 @@ async function scope(cfg: Config, cross: boolean | undefined): Promise<{ project
 }
 
 export async function searchNotes(cfg: Config, sync: Sync | null, input: z.infer<z.ZodObject<typeof searchInput>>): Promise<ListResult> {
-  if (cfg.repo === null || !sync) return { ok: false, code: 'not_configured', detail: 'MORGAN_VAULT_REPO is empty' };
+  if (cfg.repo === null) return { ok: false, code: 'not_configured', detail: 'MORGAN_VAULT_REPO is empty' };
+  if (!sync) return { ok: false, code: 'not_ready', detail: 'the vault clone is not available (clone failed or the remote is unreachable)' };
   const s = await scope(cfg, input.cross_project);
   if ('ok' in s) return s;
   await sync.refresh();
@@ -51,7 +52,8 @@ export async function searchNotes(cfg: Config, sync: Sync | null, input: z.infer
 }
 
 export async function recentNotes(cfg: Config, sync: Sync | null, input: z.infer<z.ZodObject<typeof recentInput>>): Promise<ListResult> {
-  if (cfg.repo === null || !sync) return { ok: false, code: 'not_configured', detail: 'MORGAN_VAULT_REPO is empty' };
+  if (cfg.repo === null) return { ok: false, code: 'not_configured', detail: 'MORGAN_VAULT_REPO is empty' };
+  if (!sync) return { ok: false, code: 'not_ready', detail: 'the vault clone is not available (clone failed or the remote is unreachable)' };
   const s = await scope(cfg, input.cross_project);
   if ('ok' in s) return s;
   await sync.refresh();

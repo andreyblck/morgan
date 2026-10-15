@@ -44791,7 +44791,8 @@ async function scope(cfg2, cross) {
   return { project: project.slug };
 }
 async function searchNotes(cfg2, sync2, input2) {
-  if (cfg2.repo === null || !sync2) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
+  if (cfg2.repo === null) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
+  if (!sync2) return { ok: false, code: "not_ready", detail: "the vault clone is not available (clone failed or the remote is unreachable)" };
   const s = await scope(cfg2, input2.cross_project);
   if ("ok" in s) return s;
   await sync2.refresh();
@@ -44800,7 +44801,8 @@ async function searchNotes(cfg2, sync2, input2) {
   return { ok: true, project: s.project, results, stale_since: sync2.staleSince };
 }
 async function recentNotes(cfg2, sync2, input2) {
-  if (cfg2.repo === null || !sync2) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
+  if (cfg2.repo === null) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
+  if (!sync2) return { ok: false, code: "not_ready", detail: "the vault clone is not available (clone failed or the remote is unreachable)" };
   const s = await scope(cfg2, input2.cross_project);
   if ("ok" in s) return s;
   await sync2.refresh();

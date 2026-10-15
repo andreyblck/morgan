@@ -200,3 +200,24 @@ test('search without a resolvable project says so', async () => {
     fx.cleanup();
   }
 });
+
+// A configured-but-unreachable repo is not the same as no repo. write and status say not_ready;
+// search and recent must agree, or a missing clone reads back as "you never set a vault".
+test('search and recent on an unreachable repo say not_ready, not not_configured', async () => {
+  const fx = makeFixture();
+  const srv = await startServer({
+    env: { MORGAN_VAULT_REPO: join(fx.dir, 'missing.git'), MORGAN_VAULT_DATA: fx.data(), MORGAN_VAULT_PULL_TTL_MS: '0' },
+    cwd: fx.proj,
+  });
+  try {
+    const s = await srv.tool('search', { query: 'anything' });
+    assert.equal(s.ok, false);
+    assert.equal(s.code, 'not_ready', JSON.stringify(s));
+    const r = await srv.tool('recent', { since: '2020-01-01' });
+    assert.equal(r.ok, false);
+    assert.equal(r.code, 'not_ready', JSON.stringify(r));
+  } finally {
+    await srv.close();
+    fx.cleanup();
+  }
+});
