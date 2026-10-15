@@ -85,6 +85,22 @@ test('status with a path remote has no project and says what to do', async () =>
   }
 });
 
+test('a local insteadOf rewrite does not change the resolved project', async () => {
+  const dir = scratch();
+  const repo = bareRepo(dir);
+  const proj = project(dir, 'https://github.com/acme/repo.git');
+  // The developer rewrites the URL to the local bare repo for push/fetch (as the fixture does).
+  sh(['config', `url.${repo}.insteadOf`, 'https://github.com/acme/repo.git'], proj);
+  const srv = await startServer({ env: { MORGAN_VAULT_REPO: repo, MORGAN_VAULT_DATA: join(dir, 'data') }, cwd: proj });
+  try {
+    const s = await srv.tool('status');
+    assert.deepEqual(s.project, { slug: 'acme--repo', remote: 'github.com/acme/repo' });
+  } finally {
+    await srv.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('status in a directory with no git remote has no project', async () => {
   const dir = scratch();
   const repo = bareRepo(dir);

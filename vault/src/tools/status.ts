@@ -20,7 +20,10 @@ export type StatusResult =
     };
 
 export async function resolveProject(projectDir: string): Promise<{ project: ProjectId | null; reason: string | null }> {
-  const r = await git(['remote', 'get-url', 'origin'], projectDir);
+  // The configured URL, not `remote get-url`, which applies insteadOf rewrites. A developer's
+  // local url.<x>.insteadOf is a fetch convenience; the declared remote is the stable identity,
+  // and two developers who disagree on rewrites must still resolve to one project.
+  const r = await git(['config', '--get', 'remote.origin.url'], projectDir);
   if (!r.ok) {
     return { project: null, reason: `no git remote "origin" in ${projectDir}; set vault.project in the project-context override` };
   }

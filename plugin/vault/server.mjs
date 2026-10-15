@@ -44687,7 +44687,7 @@ function normalizeRemote(url2) {
 
 // src/tools/status.ts
 async function resolveProject(projectDir) {
-  const r = await git(["remote", "get-url", "origin"], projectDir);
+  const r = await git(["config", "--get", "remote.origin.url"], projectDir);
   if (!r.ok) {
     return { project: null, reason: `no git remote "origin" in ${projectDir}; set vault.project in the project-context override` };
   }
