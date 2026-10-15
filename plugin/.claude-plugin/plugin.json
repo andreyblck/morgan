@@ -11,6 +11,7 @@
     "vault": {
       "command": "node",
       "args": [
+        "--disable-warning=ExperimentalWarning",
         "${CLAUDE_PLUGIN_ROOT}/vault/server.mjs"
       ],
       "env": {

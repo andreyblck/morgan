@@ -74,6 +74,26 @@ export class Repo {
       });
   }
 
+  /** For reads: take what the remote has, never rewrite local commits. */
+  async pullFfOnly(branch: string): Promise<boolean> {
+    return (await git(['pull', '--ff-only', '--quiet', 'origin', branch], this.clone)).ok;
+  }
+
+  async remoteReachable(): Promise<boolean> {
+    return (await git(['ls-remote', '--exit-code', '--heads', 'origin'], this.clone)).code !== 128;
+  }
+
+  async headSha(): Promise<string | null> {
+    const r = await git(['rev-parse', '--verify', '--quiet', 'HEAD'], this.clone);
+    return r.ok ? r.stdout.trim() : null;
+  }
+
+  /** Cheap change detector for the index: the tree hash of HEAD plus any staged edits. */
+  async treeFingerprint(): Promise<string> {
+    const r = await git(['write-tree'], this.clone);
+    return r.ok ? r.stdout.trim() : '';
+  }
+
   async pullRebase(branch: string): Promise<boolean> {
     if (!(await this.remoteHasBranch(branch))) return true;
     const r = await git(['pull', '--rebase', '--quiet', 'origin', branch], this.clone);

@@ -25,7 +25,7 @@ export async function startServer(opts: { env?: NodeJS.ProcessEnv; cwd?: string 
   delete env.CLAUDE_PLUGIN_DATA;
   delete env.CLAUDE_PROJECT_DIR;
 
-  const child: ChildProcess = spawn(process.execPath, ['--import', tsx, entry], {
+  const child: ChildProcess = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--import', tsx, entry], {
     cwd: opts.cwd ?? here,
     env,
     stdio: ['pipe', 'pipe', 'pipe'],
