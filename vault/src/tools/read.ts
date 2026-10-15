@@ -1,0 +1,67 @@
+import { z } from 'zod';
+import { cloneDir, type Config } from '../config.js';
+import { envelopeBody, marker, PathRefused, readNoteFile, resolveNotePath } from '../notes.js';
+import { Repo } from '../repo.js';
+import { ULID_RE } from '../ulid.js';
+
+export const readInput = { path: z.string().min(1).max(500) };
+
+export type ReadResult =
+  | {
+      ok: true;
+      path: string;
+      ulid: string | null;
+      type: string | null;
+      frontmatter: Record<string, unknown>;
+      body: string;
+      provenance: { author: string | null; author_verified: false; sha: string | null; branch: string | null; created: string | null };
+      read_confidence: 'Inferred';
+      markers: { begin: string; end: string };
+      markers_escaped: boolean;
+    }
+  | { ok: false; code: 'not_configured' | 'not_ready' | 'path_refused' | 'not_found' | 'invalid'; detail: string };
+
+const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+
+export async function readNote(cfg: Config, path: string): Promise<ReadResult> {
+  if (cfg.repo === null) return { ok: false, code: 'not_configured', detail: 'MORGAN_VAULT_REPO is empty' };
+  const repo = new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
+  const cloneError = await repo.ensure();
+  if (cloneError) return { ok: false, code: 'not_ready', detail: cloneError };
+
+  let abs: string;
+  try {
+    abs = await resolveNotePath(repo.clone, path, { mustExist: true });
+  } catch (e) {
+    if (e instanceof PathRefused) {
+      return e.why === 'not found' ? { ok: false, code: 'not_found', detail: path } : { ok: false, code: 'path_refused', detail: e.why };
+    }
+    throw e;
+  }
+
+  const note = await readNoteFile(abs);
+  if ('invalid' in note) return { ok: false, code: 'invalid', detail: note.invalid };
+
+  const base = path.slice(path.lastIndexOf('/') + 1);
+  const id = base.slice(0, 26);
+  const ulid = ULID_RE.test(id) ? id : null;
+  const env = envelopeBody(ulid ?? 'unknown', note.body);
+  return {
+    ok: true,
+    path,
+    ulid,
+    type: str(note.frontmatter.type),
+    frontmatter: note.frontmatter,
+    body: env.body,
+    provenance: {
+      author: str(note.frontmatter.author),
+      author_verified: false,
+      sha: str(note.frontmatter.sha),
+      branch: str(note.frontmatter.branch),
+      created: str(note.frontmatter.created),
+    },
+    read_confidence: 'Inferred',
+    markers: { begin: marker.begin(ulid ?? 'unknown'), end: marker.end },
+    markers_escaped: env.escaped,
+  };
+}

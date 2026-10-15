@@ -5,7 +5,9 @@
   "description": "Team knowledge vault for the morgan plugin: an MCP server over a git repo of markdown notes.",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=22.5" },
+  "engines": {
+    "node": ">=22.5"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
@@ -14,6 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
+    "yaml": "2.9.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
