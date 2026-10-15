@@ -2,8 +2,19 @@ import { open, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const LOCK = '.vault.lock';
-const WAIT_MS = 30_000;
+const DEFAULT_WAIT_MS = 30_000;
 const POLL_MS = 100;
+
+export class LockTimeout extends Error {
+  constructor(path: string, owner: number) {
+    super(`lock_timeout: ${path} held by pid ${owner}`);
+  }
+}
+
+function waitMs(): number {
+  const v = Number.parseInt(process.env.MORGAN_VAULT_LOCK_WAIT_MS ?? '', 10);
+  return Number.isFinite(v) && v >= 0 ? v : DEFAULT_WAIT_MS;
+}
 
 function pidAlive(pid: number): boolean {
   try {
@@ -21,7 +32,7 @@ function pidAlive(pid: number): boolean {
  */
 export async function withLock<T>(cloneDir: string, fn: () => Promise<T>): Promise<T> {
   const path = join(cloneDir, LOCK);
-  const deadline = Date.now() + WAIT_MS;
+  const deadline = Date.now() + waitMs();
   for (;;) {
     try {
       const fh = await open(path, 'wx');
@@ -35,7 +46,7 @@ export async function withLock<T>(cloneDir: string, fn: () => Promise<T>): Promi
         await rm(path, { force: true });
         continue;
       }
-      if (Date.now() > deadline) throw new Error(`lock_timeout: ${path} held by pid ${owner}`);
+      if (Date.now() > deadline) throw new LockTimeout(path, owner);
       await new Promise((r) => setTimeout(r, POLL_MS));
     }
   }

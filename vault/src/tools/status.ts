@@ -15,6 +15,7 @@ export type StatusResult =
       project_reason: string | null;
       project_dir: string;
       unpushed: number;
+      unpushed_foreign: number;
       stale_since: string | null;
     };
 
@@ -33,23 +34,33 @@ export async function resolveProject(projectDir: string): Promise<{ project: Pro
   return { project, reason: null };
 }
 
-export async function status(cfg: Config): Promise<StatusResult> {
+export async function status(cfg: Config, repo?: Repo): Promise<StatusResult> {
   if (cfg.repo === null) {
     return { configured: false, reason: 'MORGAN_VAULT_REPO is empty', project_dir: cfg.projectDir };
   }
-  const repo = new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
-  const error = await repo.ensure();
+  const r = repo ?? new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
+  const error = await r.ensure();
   const { project, reason } = await resolveProject(cfg.projectDir);
+  let unpushed = 0;
+  let foreign = 0;
+  if (error === null) {
+    // Status is where a crashed or offline earlier session gets put right.
+    const rec = await r.reconcile();
+    const pending = await r.unpushed();
+    unpushed = pending.length;
+    foreign = rec.foreign;
+  }
   return {
     configured: true,
     ready: error === null,
     reason: error,
     repo: cfg.repo,
-    clone: repo.clone,
+    clone: r.clone,
     project,
     project_reason: reason,
     project_dir: cfg.projectDir,
-    unpushed: error === null ? (await repo.unpushed()).length : 0,
+    unpushed,
+    unpushed_foreign: foreign,
     stale_since: null,
   };
 }

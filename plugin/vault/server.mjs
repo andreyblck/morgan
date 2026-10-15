@@ -43938,7 +43938,7 @@ function loadConfig(env = process.env, cwd = process.cwd()) {
     projectDir: clean(env.CLAUDE_PROJECT_DIR) || cwd
   };
 }
-var repoKey = (repo) => createHash("sha256").update(repo).digest("hex").slice(0, 12);
+var repoKey = (repo2) => createHash("sha256").update(repo2).digest("hex").slice(0, 12);
 function cloneDir(cfg2) {
   return join(cfg2.dataDir, "vault", repoKey(cfg2.repo));
 }
@@ -43994,8 +43994,17 @@ function git(args, cwd) {
 import { open as open2, readFile, rm } from "node:fs/promises";
 import { join as join2 } from "node:path";
 var LOCK = ".vault.lock";
-var WAIT_MS = 3e4;
+var DEFAULT_WAIT_MS = 3e4;
 var POLL_MS = 100;
+var LockTimeout = class extends Error {
+  constructor(path, owner) {
+    super(`lock_timeout: ${path} held by pid ${owner}`);
+  }
+};
+function waitMs() {
+  const v = Number.parseInt(process.env.MORGAN_VAULT_LOCK_WAIT_MS ?? "", 10);
+  return Number.isFinite(v) && v >= 0 ? v : DEFAULT_WAIT_MS;
+}
 function pidAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -44006,7 +44015,7 @@ function pidAlive(pid) {
 }
 async function withLock(cloneDir2, fn) {
   const path = join2(cloneDir2, LOCK);
-  const deadline = Date.now() + WAIT_MS;
+  const deadline = Date.now() + waitMs();
   for (; ; ) {
     try {
       const fh = await open2(path, "wx");
@@ -44021,7 +44030,7 @@ async function withLock(cloneDir2, fn) {
         await rm(path, { force: true });
         continue;
       }
-      if (Date.now() > deadline) throw new Error(`lock_timeout: ${path} held by pid ${owner}`);
+      if (Date.now() > deadline) throw new LockTimeout(path, owner);
       await new Promise((r) => setTimeout(r, POLL_MS));
     }
   }
@@ -44034,16 +44043,18 @@ async function withLock(cloneDir2, fn) {
 
 // src/repo.ts
 var TRAILER = "Vault-Server: morgan-vault";
-var PUSH_ATTEMPTS = 3;
+var PUSH_ATTEMPTS = 5;
 var exists = (p) => access(p).then(() => true, () => false);
-var jitter = () => new Promise((r) => setTimeout(r, 500 + Math.random() * 1500));
+var jitter = (attempt) => new Promise((r) => setTimeout(r, 200 * attempt + Math.random() * 800));
 var Repo = class {
-  constructor(clone2, url2) {
+  constructor(clone2, url2, note = () => void 0) {
     this.clone = clone2;
     this.url = url2;
+    this.note = note;
   }
   clone;
   url;
+  note;
   /** Clone on first use. Returns the error text when that can't be done. */
   async ensure() {
     if (await exists(join3(this.clone, ".git"))) return null;
@@ -44060,20 +44071,38 @@ var Repo = class {
     const local = await git(["symbolic-ref", "--quiet", "--short", "HEAD"], this.clone);
     return local.ok ? local.stdout.trim() : "main";
   }
+  knownRemoteBranches = /* @__PURE__ */ new Set();
+  /** A round-trip to the remote, so once a branch is known to exist the answer is kept. */
   async remoteHasBranch(branch) {
+    if (this.knownRemoteBranches.has(branch)) return true;
     const r = await git(["ls-remote", "--heads", "origin", branch], this.clone);
-    return r.ok && r.stdout.trim() !== "";
+    const has = r.ok && r.stdout.trim() !== "";
+    if (has) this.knownRemoteBranches.add(branch);
+    return has;
+  }
+  async remoteReachable() {
+    return (await git(["ls-remote", "--exit-code", "--heads", "origin"], this.clone)).code !== 128;
   }
   async hasHead() {
     return (await git(["rev-parse", "--verify", "--quiet", "HEAD"], this.clone)).ok;
+  }
+  async headSha() {
+    const r = await git(["rev-parse", "--verify", "--quiet", "HEAD"], this.clone);
+    return r.ok ? r.stdout.trim() : null;
+  }
+  /** Cheap change detector for the index: the tree hash of HEAD plus any staged edits. */
+  async treeFingerprint() {
+    const r = await git(["write-tree"], this.clone);
+    return r.ok ? r.stdout.trim() : "";
   }
   async midRebase() {
     return await exists(join3(this.clone, ".git", "rebase-merge")) || await exists(join3(this.clone, ".git", "rebase-apply"));
   }
   async abortRebase() {
     await git(["rebase", "--abort"], this.clone);
+    this.note("rebase aborted");
   }
-  /** Tracked files changed and not committed. Untracked files (the lock, the log) don't count. */
+  /** Tracked files changed and not committed. Untracked files (the lock) don't count. */
   async dirty() {
     const r = await git(["status", "--porcelain", "--untracked-files=no"], this.clone);
     return r.stdout.trim() !== "";
@@ -44092,18 +44121,6 @@ var Repo = class {
   async pullFfOnly(branch) {
     return (await git(["pull", "--ff-only", "--quiet", "origin", branch], this.clone)).ok;
   }
-  async remoteReachable() {
-    return (await git(["ls-remote", "--exit-code", "--heads", "origin"], this.clone)).code !== 128;
-  }
-  async headSha() {
-    const r = await git(["rev-parse", "--verify", "--quiet", "HEAD"], this.clone);
-    return r.ok ? r.stdout.trim() : null;
-  }
-  /** Cheap change detector for the index: the tree hash of HEAD plus any staged edits. */
-  async treeFingerprint() {
-    const r = await git(["write-tree"], this.clone);
-    return r.ok ? r.stdout.trim() : "";
-  }
   async pullRebase(branch) {
     if (!await this.remoteHasBranch(branch)) return true;
     const r = await git(["pull", "--rebase", "--quiet", "origin", branch], this.clone);
@@ -44114,51 +44131,80 @@ var Repo = class {
     return (await git(["push", "--quiet", "origin", `HEAD:refs/heads/${branch}`], this.clone)).ok;
   }
   /**
+   * Bring a clone that a crash or a failed push left behind back to a known state:
+   * no rebase in progress, and the server's own unpushed commits pushed. Foreign
+   * commits are left alone and reported; they are never pushed. Never resets.
+   */
+  async reconcile() {
+    return withLock(this.clone, async () => {
+      if (await this.midRebase()) await this.abortRebase();
+      const pending = await this.unpushed();
+      const ours = pending.filter((c) => c.ours).length;
+      const foreign = pending.length - ours;
+      let pushed = false;
+      if (ours > 0 && foreign === 0) {
+        pushed = await this.pushWithRetry(await this.branch());
+        this.note(pushed ? `reconcile: pushed ${ours} earlier commit(s)` : `reconcile: ${ours} earlier commit(s) still unpushed`);
+      }
+      return { ours, foreign, pushed };
+    });
+  }
+  /**
    * The write cycle. `write` puts files into the clone after it is up to date; `paths`
    * are the only files that get staged. A clone with hand-made changes or foreign commits
    * is refused rather than shipped, because the gate only ran on what the server wrote.
    */
   async commitAndPush(opts) {
-    return withLock(this.clone, async () => {
-      const branch = await this.branch();
-      if (await this.midRebase()) await this.abortRebase();
-      if (await this.dirty()) return { ok: false, code: "clone_dirty", detail: "tracked files changed in the clone by something other than the server" };
-      const pending = await this.unpushed();
-      const foreign = pending.filter((c) => !c.ours);
-      if (foreign.length) {
-        return { ok: false, code: "clone_dirty", detail: `commits not made by the server: ${foreign.map((c) => c.sha.slice(0, 7)).join(", ")}` };
-      }
-      if (pending.length && !await this.pushWithRetry(branch)) {
-        return { ok: false, code: "clone_needs_reconcile", detail: `${pending.length} earlier commit(s) could not be pushed` };
-      }
-      if (!await this.pullRebase(branch)) return { ok: false, code: "pull_failed", detail: "could not bring the clone up to date" };
-      await opts.write();
-      const add = await git(["add", "--", ...opts.paths], this.clone);
-      if (!add.ok) {
-        await git(["checkout", "--", ...opts.paths], this.clone).catch(() => void 0);
-        return { ok: false, code: "pull_failed", detail: `git add: ${add.stderr.trim()}` };
-      }
-      const commit = await git(
-        ["-c", `user.name=${opts.author.name}`, "-c", `user.email=${opts.author.email}`, "commit", "--quiet", "--only", "-m", `${opts.message}
+    try {
+      return await withLock(this.clone, () => this.cycle(opts));
+    } catch (e) {
+      if (e instanceof LockTimeout) return { ok: false, code: "lock_timeout", detail: e.message };
+      throw e;
+    }
+  }
+  async cycle(opts) {
+    const branch = await this.branch();
+    if (await this.midRebase()) await this.abortRebase();
+    if (await this.dirty()) return { ok: false, code: "clone_dirty", detail: "tracked files changed in the clone by something other than the server" };
+    const pending = await this.unpushed();
+    const foreign = pending.filter((c) => !c.ours);
+    if (foreign.length) {
+      return { ok: false, code: "clone_dirty", detail: `commits not made by the server: ${foreign.map((c) => c.sha.slice(0, 7)).join(", ")}` };
+    }
+    if (pending.length && !await this.pushWithRetry(branch)) {
+      return { ok: false, code: "clone_needs_reconcile", detail: `${pending.length} earlier commit(s) could not be pushed` };
+    }
+    if (!await this.pullRebase(branch)) return { ok: false, code: "pull_failed", detail: "could not bring the clone up to date" };
+    await opts.write();
+    const add = await git(["add", "--", ...opts.paths], this.clone);
+    if (!add.ok) {
+      await git(["checkout", "--", ...opts.paths], this.clone);
+      return { ok: false, code: "pull_failed", detail: `git add: ${add.stderr.trim()}` };
+    }
+    const commit = await git(
+      ["-c", `user.name=${opts.author.name}`, "-c", `user.email=${opts.author.email}`, "commit", "--quiet", "--only", "-m", `${opts.message}
 
 ${TRAILER}/0.2.0`, "--", ...opts.paths],
-        this.clone
-      );
-      if (!commit.ok) {
-        await git(["reset", "--quiet", "--", ...opts.paths], this.clone);
-        for (const p of opts.paths) await rm2(join3(this.clone, p), { force: true });
-        return { ok: false, code: "pull_failed", detail: `git commit: ${commit.stderr.trim()}` };
-      }
-      if (await this.pushWithRetry(branch)) return { ok: true };
-      return { ok: false, code: "committed_not_pushed", detail: "committed locally; the push was rejected three times" };
-    });
+      this.clone
+    );
+    if (!commit.ok) {
+      await git(["reset", "--quiet", "--", ...opts.paths], this.clone);
+      for (const p of opts.paths) await rm2(join3(this.clone, p), { force: true });
+      return { ok: false, code: "pull_failed", detail: `git commit: ${commit.stderr.trim()}` };
+    }
+    if (await this.pushWithRetry(branch)) return { ok: true };
+    return { ok: false, code: "committed_not_pushed", detail: `committed locally; the push was rejected ${PUSH_ATTEMPTS} times` };
   }
   async pushWithRetry(branch) {
     for (let attempt = 1; attempt <= PUSH_ATTEMPTS; attempt++) {
       if (await this.push(branch)) return true;
       if (attempt === PUSH_ATTEMPTS) break;
-      await jitter();
-      await this.pullRebase(branch);
+      this.note(`push rejected, retry ${attempt}/${PUSH_ATTEMPTS - 1} after rebase`);
+      await jitter(attempt);
+      if (!await this.pullRebase(branch)) {
+        this.note("rebase failed; leaving the commit local");
+        return false;
+      }
     }
     return false;
   }
@@ -44425,8 +44471,8 @@ async function collectNotes(clone2) {
 // src/sync.ts
 var DEFAULT_TTL_MS = 5 * 60 * 1e3;
 var Sync = class {
-  constructor(repo, ttlMs = Number.parseInt(process.env.MORGAN_VAULT_PULL_TTL_MS ?? "", 10) >= 0 ? Number.parseInt(process.env.MORGAN_VAULT_PULL_TTL_MS ?? "", 10) : DEFAULT_TTL_MS) {
-    this.repo = repo;
+  constructor(repo2, ttlMs = Number.parseInt(process.env.MORGAN_VAULT_PULL_TTL_MS ?? "", 10) >= 0 ? Number.parseInt(process.env.MORGAN_VAULT_PULL_TTL_MS ?? "", 10) : DEFAULT_TTL_MS) {
+    this.repo = repo2;
     this.ttlMs = ttlMs;
   }
   repo;
@@ -44493,12 +44539,12 @@ async function staleness(projectDir, sha, files) {
 }
 async function readNote(cfg2, path) {
   if (cfg2.repo === null) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
-  const repo = new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
-  const cloneError = await repo.ensure();
+  const repo2 = new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
+  const cloneError = await repo2.ensure();
   if (cloneError) return { ok: false, code: "not_ready", detail: cloneError };
   let abs;
   try {
-    abs = await resolveNotePath(repo.clone, path, { mustExist: true });
+    abs = await resolveNotePath(repo2.clone, path, { mustExist: true });
   } catch (e) {
     if (e instanceof PathRefused) {
       return e.why === "not found" ? { ok: false, code: "not_found", detail: path } : { ok: false, code: "path_refused", detail: e.why };
@@ -44646,23 +44692,32 @@ async function resolveProject(projectDir) {
   }
   return { project, reason: null };
 }
-async function status(cfg2) {
+async function status(cfg2, repo2) {
   if (cfg2.repo === null) {
     return { configured: false, reason: "MORGAN_VAULT_REPO is empty", project_dir: cfg2.projectDir };
   }
-  const repo = new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
-  const error62 = await repo.ensure();
+  const r = repo2 ?? new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
+  const error62 = await r.ensure();
   const { project, reason } = await resolveProject(cfg2.projectDir);
+  let unpushed = 0;
+  let foreign = 0;
+  if (error62 === null) {
+    const rec = await r.reconcile();
+    const pending = await r.unpushed();
+    unpushed = pending.length;
+    foreign = rec.foreign;
+  }
   return {
     configured: true,
     ready: error62 === null,
     reason: error62,
     repo: cfg2.repo,
-    clone: repo.clone,
+    clone: r.clone,
     project,
     project_reason: reason,
     project_dir: cfg2.projectDir,
-    unpushed: error62 === null ? (await repo.unpushed()).length : 0,
+    unpushed,
+    unpushed_foreign: foreign,
     stale_since: null
   };
 }
@@ -44905,7 +44960,7 @@ function schemaRefusal(type, fields) {
   if (issue2.path[0] === "verify" && issue2.path.length > 1) return refuse("verify_not_argv", `verify[${String(issue2.path[1])}]: ${issue2.message}`);
   return refuse("schema_error", `${issue2.path.join(".") || "(root)"}: ${issue2.message}`);
 }
-async function writeNote(cfg2, input2) {
+async function writeNote(cfg2, input2, sharedRepo) {
   if (cfg2.repo === null) return refuse("not_configured", "MORGAN_VAULT_REPO is empty");
   const kind = KINDS[input2.type];
   const schemaError = schemaRefusal(input2.type, input2.fields);
@@ -44925,12 +44980,12 @@ async function writeNote(cfg2, input2) {
   if (refusal) return refuse(refusal.code, refusal.detail);
   const { project, reason } = await resolveProject(cfg2.projectDir);
   if (!project) return refuse("project_unknown", reason ?? "no project");
-  const repo = new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
-  const cloneError = await repo.ensure();
+  const repo2 = sharedRepo ?? new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
+  const cloneError = await repo2.ensure();
   if (cloneError) return refuse("not_ready", cloneError);
   let superseded = null;
   if (input2.type === "finding") {
-    const existing = await listNotes(repo.clone, project.slug, "findings");
+    const existing = await listNotes(repo2.clone, project.slug, "findings");
     const target = typeof fields.supersedes === "string" ? fields.supersedes : null;
     if (target !== null) {
       superseded = existing.find((n) => n.ulid === target && n.frontmatter.status === "active") ?? null;
@@ -44955,30 +45010,30 @@ async function writeNote(cfg2, input2) {
   const notePath = `projects/${project.slug}/${kind.dir}/${id}-${slugOf(String(fields[kind.slugFrom] ?? ""))}.md`;
   const projectPath = `projects/${project.slug}/project.md`;
   const paths = [notePath];
-  const result = await repo.commitAndPush({
+  const result = await repo2.commitAndPush({
     paths,
     message: `vault: ${input2.type} ${id} (${project.slug})`,
     author,
     write: async () => {
-      if (!await exists2(join10(repo.clone, projectPath))) {
-        await mkdir3(join10(repo.clone, dirname3(projectPath)), { recursive: true });
-        await writeFile(join10(repo.clone, projectPath), serializeNote({ slug: project.slug, remotes: [project.remote], created }, `# ${project.slug}
+      if (!await exists2(join10(repo2.clone, projectPath))) {
+        await mkdir3(join10(repo2.clone, dirname3(projectPath)), { recursive: true });
+        await writeFile(join10(repo2.clone, projectPath), serializeNote({ slug: project.slug, remotes: [project.remote] }, `# ${project.slug}
 `));
         paths.push(projectPath);
       }
-      if (!await exists2(join10(repo.clone, ".gitignore"))) {
-        await writeFile(join10(repo.clone, ".gitignore"), ".obsidian/\n");
+      if (!await exists2(join10(repo2.clone, ".gitignore"))) {
+        await writeFile(join10(repo2.clone, ".gitignore"), ".obsidian/\n");
         paths.push(".gitignore");
       }
       if (superseded) {
-        const current = parseNote(await readFile5(join10(repo.clone, superseded.path), "utf8"));
+        const current = parseNote(await readFile5(join10(repo2.clone, superseded.path), "utf8"));
         if (!("invalid" in current)) {
-          await writeFile(join10(repo.clone, superseded.path), serializeNote({ ...current.frontmatter, status: "superseded", superseded_by: id }, current.body));
+          await writeFile(join10(repo2.clone, superseded.path), serializeNote({ ...current.frontmatter, status: "superseded", superseded_by: id }, current.body));
           paths.push(superseded.path);
         }
       }
-      await mkdir3(join10(repo.clone, dirname3(notePath)), { recursive: true });
-      await writeFile(join10(repo.clone, notePath), serializeNote(frontmatter, input2.body));
+      await mkdir3(join10(repo2.clone, dirname3(notePath)), { recursive: true });
+      await writeFile(join10(repo2.clone, notePath), serializeNote(frontmatter, input2.body));
     }
   });
   if (!result.ok) return refuse(result.code, result.detail);
@@ -44994,12 +45049,13 @@ var INSTRUCTIONS = [
 ].join("\n");
 var cfg = loadConfig();
 var log = new Log(cfg.repo ? logFile({ ...cfg, repo: cfg.repo }) : null);
+var repo = cfg.repo ? new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo, (line) => void log.line("git", line, Date.now())) : null;
 var sync = null;
 async function getSync() {
-  if (cfg.repo === null) return null;
+  if (!repo) return null;
   if (!sync) {
-    const repo = new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
     if (await repo.ensure() !== null) return null;
+    await repo.reconcile();
     sync = new Sync(repo);
   }
   return sync;
@@ -45013,7 +45069,7 @@ server.registerTool(
   },
   async () => {
     const t0 = Date.now();
-    const result = await status(cfg);
+    const result = await status(cfg, repo ?? void 0);
     const s = await getSync();
     const withStale = result.configured && s ? { ...result, stale_since: s.staleSince } : result;
     await log.line("status", result.configured ? result.ready ? "ok" : "not_ready" : "not_configured", t0);
@@ -45067,10 +45123,11 @@ server.registerTool(
   },
   async (input2) => {
     const t0 = Date.now();
-    const result = await writeNote(cfg, input2);
+    const result = await (writeQueue = writeQueue.then(() => writeNote(cfg, input2, repo ?? void 0), () => writeNote(cfg, input2, repo ?? void 0)));
     if (result.ok) sync?.invalidate();
     await log.line("write", result.ok ? `ok ${result.path}` : result.code, t0);
     return text(result);
   }
 );
+var writeQueue = Promise.resolve();
 await server.connect(new StdioServerTransport());

@@ -18,7 +18,8 @@ export interface Server {
   close(): Promise<void>;
 }
 
-export async function startServer(opts: { env?: NodeJS.ProcessEnv; cwd?: string } = {}): Promise<Server> {
+export async function startServer(opts: { env?: NodeJS.ProcessEnv; cwd?: string; timeoutMs?: number } = {}): Promise<Server> {
+  const timeoutMs = opts.timeoutMs ?? 20_000;
   const env: NodeJS.ProcessEnv = { ...process.env, ...opts.env };
   // Tests must not pick up the developer's own vault.
   if (!('MORGAN_VAULT_REPO' in (opts.env ?? {}))) delete env.MORGAN_VAULT_REPO;
@@ -52,7 +53,7 @@ export async function startServer(opts: { env?: NodeJS.ProcessEnv; cwd?: string 
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(new Error(`rpc timeout: ${method}\nstderr:\n${stderr.join('')}`));
-      }, 20_000);
+      }, timeoutMs);
       pending.set(id, (msg) => { clearTimeout(timer); resolve(msg); });
       child.stdin!.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
     });

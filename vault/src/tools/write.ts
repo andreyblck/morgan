@@ -65,7 +65,7 @@ function schemaRefusal(type: NoteType, fields: Record<string, unknown>): WriteRe
   return refuse('schema_error', `${issue.path.join('.') || '(root)'}: ${issue.message}`);
 }
 
-export async function writeNote(cfg: Config, input: { type: NoteType; fields: Record<string, unknown>; body: string }): Promise<WriteResult> {
+export async function writeNote(cfg: Config, input: { type: NoteType; fields: Record<string, unknown>; body: string }, sharedRepo?: Repo): Promise<WriteResult> {
   if (cfg.repo === null) return refuse('not_configured', 'MORGAN_VAULT_REPO is empty');
   const kind = KINDS[input.type];
 
@@ -89,7 +89,7 @@ export async function writeNote(cfg: Config, input: { type: NoteType; fields: Re
   const { project, reason } = await resolveProject(cfg.projectDir);
   if (!project) return refuse('project_unknown', reason ?? 'no project');
 
-  const repo = new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
+  const repo = sharedRepo ?? new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
   const cloneError = await repo.ensure();
   if (cloneError) return refuse('not_ready', cloneError);
 
@@ -129,10 +129,11 @@ export async function writeNote(cfg: Config, input: { type: NoteType; fields: Re
     message: `vault: ${input.type} ${id} (${project.slug})`,
     author,
     write: async () => {
-      // Files that only exist on a first write are the server's own too.
+      // Files that only exist on a first write are the server's own too. Their content is
+      // the same whichever clone writes them first, so two first writes rebase cleanly.
       if (!(await exists(join(repo.clone, projectPath)))) {
         await mkdir(join(repo.clone, dirname(projectPath)), { recursive: true });
-        await writeFile(join(repo.clone, projectPath), serializeNote({ slug: project.slug, remotes: [project.remote], created }, `# ${project.slug}\n`));
+        await writeFile(join(repo.clone, projectPath), serializeNote({ slug: project.slug, remotes: [project.remote] }, `# ${project.slug}\n`));
         paths.push(projectPath);
       }
       if (!(await exists(join(repo.clone, '.gitignore')))) {

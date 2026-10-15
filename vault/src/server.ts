@@ -19,14 +19,15 @@ const INSTRUCTIONS = [
 const cfg = loadConfig();
 const log = new Log(cfg.repo ? logFile({ ...cfg, repo: cfg.repo }) : null);
 
-// One Sync per server: it owns the pull clock and the in-memory index. Created lazily so an
-// unconfigured server never touches the filesystem.
+// One Repo and one Sync per server: the Sync owns the pull clock and the in-memory index.
+// Created lazily so an unconfigured server never touches the filesystem.
+const repo = cfg.repo ? new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo, (line) => void log.line('git', line, Date.now())) : null;
 let sync: Sync | null = null;
 async function getSync(): Promise<Sync | null> {
-  if (cfg.repo === null) return null;
+  if (!repo) return null;
   if (!sync) {
-    const repo = new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
     if ((await repo.ensure()) !== null) return null;
+    await repo.reconcile();
     sync = new Sync(repo);
   }
   return sync;
@@ -44,7 +45,7 @@ server.registerTool(
   },
   async () => {
     const t0 = Date.now();
-    const result = await status(cfg);
+    const result = await status(cfg, repo ?? undefined);
     const s = await getSync();
     const withStale = result.configured && s ? { ...result, stale_since: s.staleSince } : result;
     await log.line('status', result.configured ? (result.ready ? 'ok' : 'not_ready') : 'not_configured', t0);
@@ -105,11 +106,13 @@ server.registerTool(
   },
   async (input) => {
     const t0 = Date.now();
-    const result = await writeNote(cfg, input);
+    // Writes from one session go one at a time: the clone lock is for other processes.
+    const result = await (writeQueue = writeQueue.then(() => writeNote(cfg, input, repo ?? undefined), () => writeNote(cfg, input, repo ?? undefined)));
     if (result.ok) sync?.invalidate();
     await log.line('write', result.ok ? `ok ${result.path}` : result.code, t0);
     return text(result);
   },
 );
+let writeQueue: Promise<unknown> = Promise.resolve();
 
 await server.connect(new StdioServerTransport());
