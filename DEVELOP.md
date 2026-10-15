@@ -216,7 +216,7 @@ You're <Agent>. You work with Arthur.
 1. **Pick a topic.** Discipline-shaped (planning, debugging, etc.) or domain-shaped (frontend-design, project-context).
 2. **Decide which command loads it.** There is no always-loaded tier — it was removed in 0.1.17 because it crowded out the reference the running command actually needed. A reference earns its place in one command's Load line, or it's reachable on demand via `SKILL.md`'s table. Naming it in a Load line means every invocation of that command pays for it.
 3. **Write `plugin/skills/morgan/references/<topic>.md`** using the anatomy above.
-4. **Update `SKILL.md`** only if the reference answers to no single command — those are the ones listed in its References table.
+4. **Update `SKILL.md`** only if the reference answers to no single command — those are the ones listed in its References table. A reference that several commands load *conditionally* (`vault`: `/track`, `/camp`, `/break`, each only when the server's tools are present, plus recovery) belongs there too — it answers to no single command's Load line, and the table is where a reader finds the condition stated once.
 5. **Update commands** that should now load this reference.
 6. **Smoke test:** invoke a command that should load it, verify it loads.
 

@@ -103,6 +103,25 @@ configuration shows overrules what's written here.
 
 ---
 
+## Vault — for the team knowledge base
+
+The vault server derives the project from the git remote and scopes every read to it. Omit the
+section and the defaults hold: the project is whatever the remote says, nothing crosses projects,
+and the server's own deny list applies. Add it when one of those isn't right for this repo.
+
+```markdown
+## Vault
+
+- **project:** <slug> — only when the server can't derive it (a path remote, or none).
+- **cross_project:** false — true lets `search` and `recent` read other projects in the same vault.
+- **deny:** <client names, code names, people> — comma-separated; a note containing one is refused.
+```
+
+Labelled bullets, one per line, as above. The `vault` reference says what the server does with
+each.
+
+---
+
 ## Conflicts with the rest of the skill
 
 If `project-context.md` contradicts something in `foundations`, `process`, etc. — the project-level rule wins. The general references are defaults; the project-level file is the local law.

@@ -17,6 +17,7 @@ export const searchInput = {
 export const recentInput = {
   since: z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/, 'ISO 8601 date or datetime'),
   type: z.enum(NOTE_TYPES).optional(),
+  status: z.enum(['active', 'superseded', 'open', 'closed']).optional(),
   limit: z.number().int().min(1).max(50).optional(),
   cross_project: z.boolean().optional(),
 };
@@ -56,6 +57,6 @@ export async function recentNotes(cfg: Config, sync: Sync | null, input: z.infer
   if ('ok' in s) return s;
   await sync.refresh();
   if (sync.index.error) return { ok: false, code: 'fts_unavailable', detail: sync.index.error };
-  const results = sync.index.recent({ since: input.since, project: s.project, type: input.type, limit: input.limit ?? 20 });
+  const results = sync.index.recent({ since: input.since, project: s.project, type: input.type, status: input.status, limit: input.limit ?? 20 });
   return { ok: true, project: s.project, results, stale_since: sync.staleSince };
 }

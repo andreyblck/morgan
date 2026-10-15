@@ -174,6 +174,10 @@ test('recent lists what appeared since a moment, newest first, same scope and sh
     for (let i = 1; i < all.length; i++) assert.ok(all[i - 1]!.created >= all[i]!.created, 'newest first');
     const trails = (await srv.tool('recent', { since: before, type: 'trail' })).results as Array<{ path: string }>;
     assert.deepEqual(trails.map((x) => x.path), [t.path]);
+    const open = (await srv.tool('recent', { since: before, type: 'trail', status: 'open' })).results as Array<{ path: string }>;
+    assert.deepEqual(open.map((x) => x.path), [t.path]);
+    const closed = (await srv.tool('recent', { since: before, type: 'trail', status: 'closed' })).results;
+    assert.deepEqual(closed, []);
     const none = (await srv.tool('recent', { since: new Date(Date.now() + 60_000).toISOString() })).results;
     assert.deepEqual(none, []);
   } finally {

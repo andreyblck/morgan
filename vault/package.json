@@ -11,8 +11,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
+    "test:bundle": "VAULT_TEST_ENTRY=bundle node --import tsx --test test/*.test.ts",
     "build": "node build.mjs",
-    "check": "npm run typecheck && npm run test && npm run build && git diff --exit-code -- ../plugin/vault/server.mjs"
+    "check": "npm run typecheck && npm run test && npm run build && npm run test:bundle && git diff --exit-code -- ../plugin/vault/server.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

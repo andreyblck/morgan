@@ -131,7 +131,7 @@ echo
     "${MCP_ARGS[@]}" \
     --permission-mode bypassPermissions \
     --output-format stream-json --verbose \
-    --no-session-persistence ) > "$TRANSCRIPT" 2>"$TRANSCRIPT.err"
+    --no-session-persistence </dev/null ) > "$TRANSCRIPT" 2>"$TRANSCRIPT.err"
 
 RC=$?
 echo "exit:       $RC"

@@ -17,13 +17,14 @@ The methods live in `references/`. Don't read them all — read what the work in
 
 Working without a command? This file is the whole method until you reach for one. Pull a reference when you hit the thing it governs: `foundations` when you don't understand the domain yet, `process` when you can't name the phase you're in, `handing-off` when the session's ending or a job's being parked.
 
-These three answer to no single command:
+These four answer to no single command:
 
 | Reference | Read when |
 | ----------- | --------- |
 | `sdlc` | Setting up a project's process; recognizing what's missing in an existing workflow |
 | `frontend-design` | UI / visual / CSS work in any cycle command |
 | `project-context` | Whenever the consumer repo has filled it in. Empty in the plugin — it's the swap point for conventions specific to that codebase. |
+| `vault` | Tools named `mcp__plugin_morgan_vault__*` are present — the team knowledge base is connected. `/track`, `/camp` and `/break` load it; recovery reads open team trails through it. |
 
 ---
 
@@ -33,7 +34,7 @@ After loading, recover before doing anything else:
 
 1. **Read CLAUDE.md** — if it exists at the project root, read it. That's where the last agent left things.
 2. **Read `.camp/lessons.md`** — if it exists. Accumulated patterns from past `/aftermath` runs. If the current work touches a known pattern, surface the precedent: "this looks like the X bug from 2026-04 — root cause was Y." If no lessons file, skip silently.
-3. **Scan `.camp/` for open trails** — an in-flight working log (`track-<slug>.md`, `trail-<slug>.md`) whose **Open / untried** section still has content is a job parked mid-flight. Match on that section by reading the logs; never scan by listing the directory and taking the first screen. `.camp/` accumulates for the life of the project — on a real one at 1,131 files, `ls | head` showed 4% of it and missed 43 of the 45 parked jobs, and a truncated listing looks exactly like an empty one. Surface the three most recent plus the total: "in flight: {goal} — N ruled out, M open. `/break <slug>` to pick it up." `.camp/` is the index here — you find these by scanning it, not via CLAUDE.md. If none, skip silently.
+3. **Scan `.camp/` for open trails** — an in-flight working log (`track-<slug>.md`, `trail-<slug>.md`) whose **Open / untried** section still has content is a job parked mid-flight. Match on that section by reading the logs; never scan by listing the directory and taking the first screen. `.camp/` accumulates for the life of the project — on a real one at 1,131 files, `ls | head` showed 4% of it and missed 43 of the 45 parked jobs, and a truncated listing looks exactly like an empty one. Surface the three most recent plus the total: "in flight: {goal} — N ruled out, M open. `/break <slug>` to pick it up." `.camp/` is the index here — you find these by scanning it, not via CLAUDE.md. If none, skip silently. **If tools named `mcp__plugin_morgan_vault__*` are present**, the team may have parked work too: call `recent` with `type: trail`, `status: open` and a `since` of ninety days back, and list up to three next to the local ones — goal, author, date, nothing more. Don't read their bodies at session start; a parked job is picked up with `/break`, which loads the `vault` reference and knows what a teammate's note is and isn't. `not_configured` or `project_unknown` → skip silently.
 4. **Check status** — what's done, what's open, what's blocked.
 5. **Identify next action** — if CLAUDE.md names a specific next step, orient to it. If not, ask the user.
 6. **Don't re-explore** — when CLAUDE.md points to files or docs, read those. Don't audit the whole codebase unless there's a reason.

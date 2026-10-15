@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 // Built from vault/src — do not edit by hand. `npm run build` in vault/.
+import { createRequire as __createRequire } from 'node:module';
+const require = __createRequire(import.meta.url);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -44405,8 +44407,14 @@ var Index = class _Index {
   }
   recent(opts) {
     if (!this.db) return [];
-    const where = ["created >= ?", "status != 'superseded'"];
+    const where = ["created >= ?"];
     const args = [opts.since];
+    if (opts.status) {
+      where.push("status = ?");
+      args.push(opts.status);
+    } else {
+      where.push("status != 'superseded'");
+    }
     if (opts.project !== null) {
       where.push("project = ?");
       args.push(opts.project);
@@ -44733,6 +44741,7 @@ var searchInput = {
 var recentInput = {
   since: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/, "ISO 8601 date or datetime"),
   type: external_exports.enum(NOTE_TYPES).optional(),
+  status: external_exports.enum(["active", "superseded", "open", "closed"]).optional(),
   limit: external_exports.number().int().min(1).max(50).optional(),
   cross_project: external_exports.boolean().optional()
 };
@@ -44764,7 +44773,7 @@ async function recentNotes(cfg2, sync2, input2) {
   if ("ok" in s) return s;
   await sync2.refresh();
   if (sync2.index.error) return { ok: false, code: "fts_unavailable", detail: sync2.index.error };
-  const results = sync2.index.recent({ since: input2.since, project: s.project, type: input2.type, limit: input2.limit ?? 20 });
+  const results = sync2.index.recent({ since: input2.since, project: s.project, type: input2.type, status: input2.status, limit: input2.limit ?? 20 });
   return { ok: true, project: s.project, results, stale_since: sync2.staleSince };
 }
 

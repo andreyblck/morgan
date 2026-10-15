@@ -6,9 +6,15 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const entry = join(here, '..', 'src', 'server.ts');
+// VAULT_TEST_ENTRY=bundle runs the same suite against the file the plugin ships. The source
+// and the bundle can disagree (a CommonJS dependency that needs a require shim did), and
+// only the bundle reaches users.
+const useBundle = process.env.VAULT_TEST_ENTRY === 'bundle';
+const entry = useBundle ? join(here, '..', '..', 'plugin', 'vault', 'server.mjs') : join(here, '..', 'src', 'server.ts');
 // The server runs with the project as cwd, so resolve tsx from here, not from there.
-const tsx = createRequire(import.meta.url).resolve('tsx');
+const nodeArgs = useBundle
+  ? ['--disable-warning=ExperimentalWarning', entry]
+  : ['--disable-warning=ExperimentalWarning', '--import', createRequire(import.meta.url).resolve('tsx'), entry];
 
 type Json = Record<string, unknown>;
 
@@ -26,7 +32,7 @@ export async function startServer(opts: { env?: NodeJS.ProcessEnv; cwd?: string;
   delete env.CLAUDE_PLUGIN_DATA;
   delete env.CLAUDE_PROJECT_DIR;
 
-  const child: ChildProcess = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--import', tsx, entry], {
+  const child: ChildProcess = spawn(process.execPath, nodeArgs, {
     cwd: opts.cwd ?? here,
     env,
     stdio: ['pipe', 'pipe', 'pipe'],

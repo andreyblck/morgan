@@ -120,10 +120,16 @@ export class Index {
     return rows.map(toHit);
   }
 
-  recent(opts: { since: string; project: string | null; type?: string | undefined; limit: number }): Hit[] {
+  recent(opts: { since: string; project: string | null; type?: string | undefined; status?: string | undefined; limit: number }): Hit[] {
     if (!this.db) return [];
-    const where = ['created >= ?', "status != 'superseded'"];
+    const where = ['created >= ?'];
     const args: unknown[] = [opts.since];
+    if (opts.status) {
+      where.push('status = ?');
+      args.push(opts.status);
+    } else {
+      where.push("status != 'superseded'");
+    }
     if (opts.project !== null) {
       where.push('project = ?');
       args.push(opts.project);
