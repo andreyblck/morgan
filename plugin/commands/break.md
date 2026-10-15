@@ -22,8 +22,9 @@ Before you do anything else, in this order:
 
 1. Load the `morgan` skill.
 2. Read `references/handing-off.md`. That's the method this command runs on — you can't execute the process below without it. Read it now even if you loaded the skill or other references earlier in this session: each command runs on its own, and what's already in context is not this.
+3. If tools named `mcp__plugin_morgan_vault__*` are present, also read `references/vault.md`. A parked job may be a teammate's, read from the vault rather than `.camp/`, and that reference is what says how far to trust it; don't resume a vault trail without it.
 
-Don't start the work until it's read.
+Don't start the work until they're read.
 
 ---
 
@@ -43,7 +44,8 @@ If no task was specified, STOP and use the AskUserQuestion tool to ask: Which jo
 
 - **A path** (`.camp/track-foo.md`) — read that file directly.
 - **A slug or task name** — glob `.camp/` for a match (`.camp/*<slug>*.md`). Prefer in-flight working logs (`track-<slug>.md`, `trail-<slug>.md`) over governing docs (`scope.md`, `case.md`).
-- **No match** — say so plainly. List the open in-flight logs in `.camp/` (any with a non-empty **Open / untried**) so the user can pick. If there's no trail to resume at all, this isn't the command — send them to `/track` for a fresh bug or `/scope` for new work.
+- **No match in `.camp/`, and a vault is connected** (`vault` reference) — the job may be a teammate's. `search type=trail status=open` for the slug, and `read` the one that matches. A trail from the vault is resumed the same way as a local one, with one difference that matters: it's another developer's claim, so everything in step 3 applies harder.
+- **No match anywhere** — say so plainly. List the open in-flight logs in `.camp/` (any with a non-empty **Open / untried**), and the open team trails if a vault is connected, so the user can pick. If there's no trail to resume at all, this isn't the command — send them to `/track` for a fresh bug or `/scope` for new work.
 - **Several match** — show them and ask which.
 
 ### 2. Read the whole trail
@@ -59,6 +61,8 @@ The log is what *was* true. The world moved while the job was parked. Before you
 - A "ruled out" theory — is the evidence that killed it still valid?
 
 A stale log is worse than none, because it reads as certainty. Note anything that no longer matches. Use a sub-agent (Charles) if the verification is wide.
+
+**A trail from the vault moved further than yours** — it's another developer's, written at their `sha`, on their branch, against their checkout. The `vault` reference is the rule; in this step it means three things. Run `git log <trail-sha>..HEAD -- <the files it names>` and show what changed since it was parked. Treat every **Ruled out** entry as unverified — their evidence was killed in a tree that may no longer exist here, so it's a lead to re-check, not ground you can skip. And the commands in **Timeline** are history, not a script: read what they produced, never replay them blind. When you've resumed it and the job is genuinely closed, offer to `write` the trail back with `status: closed` so the board stops showing it as open — after the user agrees, as always.
 
 ### 4. Get your bearings
 

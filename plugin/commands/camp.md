@@ -22,8 +22,9 @@ Before you do anything else, in this order:
 
 1. Load the `morgan` skill.
 2. Read `references/handing-off.md`. That's the method this command runs on — you can't execute the process below without it. Read it now even if you loaded the skill or other references earlier in this session: each command runs on its own, and what's already in context is not this.
+3. If tools named `mcp__plugin_morgan_vault__*` are present, also read `references/vault.md`. It governs how an in-flight trail reaches the rest of the team; the step below that writes one can't be run without it.
 
-Don't start the work until it's read.
+Don't start the work until they're read.
 
 ---
 
@@ -46,7 +47,7 @@ Check the conversation for significant work products that exist only in context:
 - Decisions and rationale.
 - Architecture or design work.
 - Root cause analyses.
-- **In-flight narrative** — on work still moving: what was tried, what it produced, what's ruled out, what's still open. Not a finished product, so it's the first thing to slip. If a `/track` ledger exists, it's already captured; otherwise seal it to `.camp/trail-<slug>.md` in the in-flight working log format (see `handing-off`).
+- **In-flight narrative** — on work still moving: what was tried, what it produced, what's ruled out, what's still open. Not a finished product, so it's the first thing to slip. If a `/track` ledger exists, it's already captured; otherwise seal it to `.camp/trail-<slug>.md` in the in-flight working log format (see `handing-off`). **If a vault is connected** (`vault` reference), the trail is also the team's to pick up: once it's in `.camp/`, show the user the six sections and offer to `write` a `trail` note so another developer can `/break` it. The `.camp/` copy stays the source — it survives when the vault can't take the write — so on `not_configured`, `project_unknown` or a refusal, keep it and say in the report that the team copy didn't land. Never write the trail to the vault without showing it first.
 - Anything that took substantial effort to produce.
 
 **For each unpersisted item:** ask the user — "This exists only in conversation. Want me to save it?" Default to `.camp/` if they don't specify a location. Don't assume. Don't skip. Don't batch them — name each one specifically.
