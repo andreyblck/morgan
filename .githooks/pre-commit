@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Runs the checks that apply to what's staged. Install once: git config core.hooksPath .githooks
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if grep -qE '^(vault/|plugin/vault/)' <<<"$staged"; then
+  echo "pre-commit: vault changed — typecheck, test, build, bundle in sync"
+  (cd vault && npm run --silent check)
+fi
+
+if grep -qE '^plugin/(commands|skills/morgan/references)/' <<<"$staged"; then
+  echo "pre-commit: commands or references changed — load lines"
+  scripts/check-load-lines.sh >/dev/null
+fi

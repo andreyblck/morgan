@@ -6,5 +6,17 @@
     "name": "Andrey Black",
     "email": "a.creatuse@gmail.com"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "mcpServers": {
+    "vault": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/vault/server.mjs"
+      ],
+      "env": {
+        "MORGAN_VAULT_REPO": "${MORGAN_VAULT_REPO:-}",
+        "MORGAN_VAULT_DATA": "${MORGAN_VAULT_DATA:-}"
+      }
+    }
+  }
 }

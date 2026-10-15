@@ -1,0 +1,25 @@
+{
+  "name": "morgan-vault",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Team knowledge vault for the morgan plugin: an MCP server over a git repo of markdown notes.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "build": "node build.mjs",
+    "check": "npm run typecheck && npm run test && npm run build && git diff --exit-code -- ../plugin/vault/server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.2.0",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}
