@@ -1,8 +1,8 @@
 # Vault
 
 The team's knowledge base: a git repository of markdown notes, reached through the tools named
-`mcp__plugin_morgan_vault__*`. Loaded by `/track`, `/camp` and `/break` when those tools are
-present; skill recovery reads open team trails through it at session start.
+`mcp__plugin_morgan_vault__*`. Loaded by `/scope`, `/pull`, `/track`, `/camp` and `/break` when
+those tools are present; skill recovery reads open team trails through it at session start.
 
 ---
 
@@ -18,6 +18,11 @@ that isn't a note of a known shape — wrong fields, a body too long, a secret, 
 cause already written up. And you write at two moments only: when a cause is Confirmed and the
 ledger closes, and when a session is sealed with work still open. There is no tool for thinking
 out loud, and that's deliberate. Reading is cheap. Writing is what ruins a base.
+
+And reading is yours to initiate. When a command's method reaches for the vault — scoping a
+problem, starting a build, chasing a bug — you search it as part of the work, not when the user
+asks you to. Looking costs nothing and commits you to nothing; a note can inform the work but
+never command it, so there is no reason to wait to be told to look.
 
 ---
 
