@@ -27,6 +27,16 @@
 #                          result is an event, so "was the reference read" is a fact about the
 #                          transcript rather than an impression.
 #
+# HARNESS_MCP=plugin relaxes H7 by exactly one notch: the plugin's own MCP servers load, and
+# nothing else does. Measured before it was written (0.2.0 spike S-B): --strict-mcp-config
+# suppresses servers a plugin declares in its manifest, so a run that needs the vault server
+# cannot carry the flag. Two things replace it. Every installed plugin is disabled through
+# --settings, because the installed cache on a dev machine is an older morgan with the same
+# name, and two copies of one plugin is a measurement of nothing. And --max-budget-usd caps
+# the run, because a server that answers is a server the agent can loop on. The default mode
+# is byte-for-byte what it was; the scorer additionally reports the run's cost and every
+# mcp__ tool the agent called, in both modes.
+#
 # SCORING — read this before changing it.
 #
 # A run is INVALID if a reference read was refused, and an invalid run's numbers mean nothing:
@@ -42,8 +52,10 @@
 #
 # Usage:
 #   scripts/harness.sh "/morgan:board FIX-101 FIX-102" [fixture-dir] [out-dir]
+#   HARNESS_MCP=plugin MORGAN_VAULT_REPO=... MORGAN_VAULT_DATA=... scripts/harness.sh "..." fixture-dir
 #
 # With no fixture-dir, a fresh one is built. Run from the repo root.
+# HARNESS_BUDGET (USD, plugin mode only, default 6) and HARNESS_TIMEOUT (seconds) are honoured.
 
 set -u
 
@@ -75,15 +87,48 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 SLUG="$(printf '%s' "$PROMPT" | tr -cs 'A-Za-z0-9' '-' | sed 's/^-//;s/-$//' | cut -c1-40)"
 TRANSCRIPT="$OUTDIR/$STAMP-$SLUG.jsonl"
 
+MODE="${HARNESS_MCP:-none}"
+case "$MODE" in
+  none)
+    MCP_ARGS=(--strict-mcp-config)
+    ;;
+  plugin)
+    # Disable every installed plugin so the only plugin in the session is --plugin-dir.
+    DISABLED="$(python3 - <<'PY'
+import json, pathlib
+reg = pathlib.Path.home() / ".claude" / "plugins" / "installed_plugins.json"
+names = []
+try:
+    names = sorted(json.loads(reg.read_text()).get("plugins", {}).keys())
+except Exception:
+    pass
+if "morgan@morgan" not in names:
+    names.append("morgan@morgan")
+print(json.dumps({"enabledPlugins": {n: False for n in names}}))
+PY
+)"
+    MCP_ARGS=(--settings "$DISABLED" --max-budget-usd "${HARNESS_BUDGET:-6}")
+    ;;
+  *)
+    echo "harness: HARNESS_MCP must be 'none' (default) or 'plugin', got '$MODE'" >&2
+    exit 2
+    ;;
+esac
+
 echo "prompt:     $PROMPT"
 echo "fixture:    $FIXTURE"
 echo "transcript: $TRANSCRIPT"
+echo "mcp:        $MODE"
+if [ "$MODE" = plugin ]; then
+  echo "vault repo: ${MORGAN_VAULT_REPO:-<unset>}"
+  echo "vault data: ${MORGAN_VAULT_DATA:-<unset>}"
+fi
 echo
 
 ( cd "$FIXTURE" && timeout "${HARNESS_TIMEOUT:-1800}" claude -p "$PROMPT" \
     --plugin-dir "$PLUGIN" \
     --add-dir "$PLUGIN" \
-    --strict-mcp-config \
+    "${MCP_ARGS[@]}" \
     --permission-mode bypassPermissions \
     --output-format stream-json --verbose \
     --no-session-persistence ) > "$TRANSCRIPT" 2>"$TRANSCRIPT.err"
@@ -122,7 +167,11 @@ for ref in sorted(refs_dir.glob("*.md")):
 
 refusals = raw.count("requested permissions to read from")
 
+# Which MCP tools the agent called, and how often. Counted from tool_use events, not from
+# prose, so "the agent used the vault" is a fact about the transcript.
 result = ""
+cost = None
+mcp_calls = {}
 for line in raw.splitlines():
     try:
         ev = json.loads(line)
@@ -130,10 +179,18 @@ for line in raw.splitlines():
         continue
     if ev.get("type") == "result":
         result = ev.get("result", "") or ""
+        cost = ev.get("total_cost_usd")
+    if ev.get("type") == "assistant":
+        for block in (ev.get("message") or {}).get("content") or []:
+            name = block.get("name") if isinstance(block, dict) and block.get("type") == "tool_use" else None
+            if name and name.startswith("mcp__"):
+                mcp_calls[name] = mcp_calls.get(name, 0) + 1
 
 print("references whose CONTENT arrived:", ", ".join(read) if read else "none")
 print("permission refusals:             ", refusals)
 print("report length:                   ", len(result), "chars")
+print("cost (USD):                      ", f"{cost:.4f}" if isinstance(cost, (int, float)) else "unknown")
+print("mcp tools called:                ", ", ".join(f"{k}×{v}" for k, v in sorted(mcp_calls.items())) if mcp_calls else "none")
 print()
 if refusals:
     print("VERDICT: INVALID RUN — a read was refused, so the command ran without its method.")
