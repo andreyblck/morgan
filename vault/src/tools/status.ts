@@ -1,5 +1,5 @@
 import { cloneDir, type Config } from '../config.js';
-import { type ProjectId, resolveProject, resolveScopedProject } from '../project.js';
+import { ownerAllowed, outOfScopeReason, type ProjectId, resolveProject, resolveScopedProject } from '../project.js';
 import { Repo } from '../repo.js';
 
 export { resolveProject, resolveScopedProject };
@@ -25,9 +25,13 @@ export async function status(cfg: Config, repo?: Repo): Promise<StatusResult> {
   if (cfg.repo === null) {
     return { configured: false, reason: 'MORGAN_VAULT_REPO is empty', project_dir: cfg.projectDir };
   }
+  const { project, reason } = await resolveScopedProject(cfg);
+  // A project outside this vault's owners behaves as no vault — don't even clone for it.
+  if (project && !ownerAllowed(cfg, project)) {
+    return { configured: false, reason: outOfScopeReason(cfg, project), project_dir: cfg.projectDir };
+  }
   const r = repo ?? new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
   const error = await r.ensure();
-  const { project, reason } = await resolveScopedProject(cfg);
   let dirty = false;
   let unpushed = 0;
   let foreign = 0;

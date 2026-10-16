@@ -9,6 +9,9 @@ export interface Config {
   dataDir: string;
   /** The project this session runs in — decides which `projects/<slug>/` is in scope. */
   projectDir: string;
+  /** Owners whose projects this vault serves (MORGAN_VAULT_OWNERS, comma-separated). `null` means
+   *  default to the vault repo's own owner; a project owned by anyone else behaves as no vault. */
+  owners: string[] | null;
 }
 
 const clean = (v: string | undefined): string => (v ?? '').trim();
@@ -21,6 +24,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, cwd: string = p
       clean(env.CLAUDE_PLUGIN_DATA) ||
       join(homedir(), '.claude', 'plugins', 'data', 'morgan-vault'),
     projectDir: clean(env.CLAUDE_PROJECT_DIR) || cwd,
+    owners: (() => {
+      const list = clean(env.MORGAN_VAULT_OWNERS)
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      return list.length ? list : null;
+    })(),
   };
 }
 

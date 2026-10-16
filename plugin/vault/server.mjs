@@ -43937,7 +43937,11 @@ function loadConfig(env = process.env, cwd = process.cwd()) {
   return {
     repo: clean(env.MORGAN_VAULT_REPO) || null,
     dataDir: clean(env.MORGAN_VAULT_DATA) || clean(env.CLAUDE_PLUGIN_DATA) || join(homedir(), ".claude", "plugins", "data", "morgan-vault"),
-    projectDir: clean(env.CLAUDE_PROJECT_DIR) || cwd
+    projectDir: clean(env.CLAUDE_PROJECT_DIR) || cwd,
+    owners: (() => {
+      const list = clean(env.MORGAN_VAULT_OWNERS).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+      return list.length ? list : null;
+    })()
   };
 }
 var repoKey = (repo2) => createHash("sha256").update(repo2).digest("hex").slice(0, 12);
@@ -44121,6 +44125,27 @@ function assertRef(ref) {
 function isHexSha(s) {
   return /^[0-9a-f]{7,40}$/.test(s);
 }
+function ownerOf(remote) {
+  if (!remote) return null;
+  const parts = remote.split("/");
+  return parts.length >= 3 ? parts[1] ?? null : null;
+}
+function allowedOwners(cfg2) {
+  if (cfg2.owners) return cfg2.owners;
+  const own2 = ownerOf(cfg2.repo ? normalizeRemote(cfg2.repo)?.remote ?? null : null);
+  return own2 ? [own2] : null;
+}
+function ownerAllowed(cfg2, project) {
+  const owners = allowedOwners(cfg2);
+  if (owners === null) return true;
+  const po = ownerOf(project.remote);
+  if (po === null) return true;
+  return owners.includes(po);
+}
+function outOfScopeReason(cfg2, project) {
+  const owners = allowedOwners(cfg2);
+  return `this vault serves ${owners ? owners.join(", ") : "any owner"}; project owner "${ownerOf(project.remote) ?? "(unknown)"}" is outside it \u2014 using .camp/ for this project`;
+}
 async function resolveProject(projectDir) {
   const r = await git(["config", "--get", "remote.origin.url"], projectDir);
   if (!r.ok) {
@@ -44292,7 +44317,7 @@ var Repo = class {
     const commit = await git(
       ["-c", `user.name=${opts.author.name}`, "-c", `user.email=${opts.author.email}`, "commit", "--quiet", "--only", "-m", `${opts.message}
 
-${TRAILER}/0.2.0`, "--", ...opts.paths],
+${TRAILER}/0.2.1`, "--", ...opts.paths],
       this.clone
     );
     if (!commit.ok) {
@@ -44711,10 +44736,11 @@ async function staleness(projectDir, sha, files) {
 }
 async function readNote(cfg2, path) {
   if (cfg2.repo === null) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
+  const { project } = await resolveScopedProject(cfg2);
+  if (project && !ownerAllowed(cfg2, project)) return { ok: false, code: "not_configured", detail: outOfScopeReason(cfg2, project) };
   const repo2 = new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
   const cloneError = await repo2.ensure();
   if (cloneError) return { ok: false, code: "not_ready", detail: cloneError };
-  const { project } = await resolveScopedProject(cfg2);
   const { cross_project } = await loadVaultSettings(cfg2.projectDir);
   if (project && !cross_project && !path.startsWith(`projects/${project.slug}/`)) {
     return { ok: false, code: "path_refused", detail: `outside the current project (${project.slug}); set cross_project to read another` };
@@ -44788,6 +44814,7 @@ async function scope(cfg2, cross) {
     return { project: null };
   }
   if (!project) return { ok: false, code: "project_unknown", detail: reason ?? "no project" };
+  if (!ownerAllowed(cfg2, project)) return { ok: false, code: "not_configured", detail: outOfScopeReason(cfg2, project) };
   return { project: project.slug };
 }
 async function searchNotes(cfg2, sync2, input2) {
@@ -44816,9 +44843,12 @@ async function status(cfg2, repo2) {
   if (cfg2.repo === null) {
     return { configured: false, reason: "MORGAN_VAULT_REPO is empty", project_dir: cfg2.projectDir };
   }
+  const { project, reason } = await resolveScopedProject(cfg2);
+  if (project && !ownerAllowed(cfg2, project)) {
+    return { configured: false, reason: outOfScopeReason(cfg2, project), project_dir: cfg2.projectDir };
+  }
   const r = repo2 ?? new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
   const error62 = await r.ensure();
-  const { project, reason } = await resolveScopedProject(cfg2);
   let dirty = false;
   let unpushed = 0;
   let foreign = 0;
@@ -45057,6 +45087,7 @@ async function writeNote(cfg2, input2, sharedRepo) {
   if (refusal) return refuse(refusal.code, refusal.detail);
   const { project, reason } = await resolveScopedProject(cfg2);
   if (!project) return refuse("project_unknown", reason ?? "no project");
+  if (!ownerAllowed(cfg2, project)) return refuse("not_configured", outOfScopeReason(cfg2, project));
   const repo2 = sharedRepo ?? new Repo(cloneDir({ ...cfg2, repo: cfg2.repo }), cfg2.repo);
   const cloneError = await repo2.ensure();
   if (cloneError) return refuse("not_ready", cloneError);
@@ -45137,7 +45168,7 @@ async function getSync() {
   }
   return sync;
 }
-var server = new McpServer({ name: "morgan-vault", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+var server = new McpServer({ name: "morgan-vault", version: "0.2.1" }, { instructions: INSTRUCTIONS });
 var text = (value) => ({ content: [{ type: "text", text: JSON.stringify(value, null, 2) }] });
 server.registerTool(
   "status",

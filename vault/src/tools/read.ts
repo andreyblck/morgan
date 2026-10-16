@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { cloneDir, type Config } from '../config.js';
 import { git } from '../git.js';
 import { envelopeBody, marker, PathRefused, readNoteFile, resolveNotePath } from '../notes.js';
-import { isHexSha, resolveScopedProject } from '../project.js';
+import { isHexSha, ownerAllowed, outOfScopeReason, resolveScopedProject } from '../project.js';
 import { loadVaultSettings } from '../projectContext.js';
 import { Repo } from '../repo.js';
 import { argvElement } from '../schema/finding.js';
@@ -54,13 +54,17 @@ export async function staleness(projectDir: string, sha: string | null, files: s
 
 export async function readNote(cfg: Config, path: string): Promise<ReadResult> {
   if (cfg.repo === null) return { ok: false, code: 'not_configured', detail: 'MORGAN_VAULT_REPO is empty' };
+
+  // A project outside this vault's owners behaves as no vault — gate before cloning.
+  const { project } = await resolveScopedProject(cfg);
+  if (project && !ownerAllowed(cfg, project)) return { ok: false, code: 'not_configured', detail: outOfScopeReason(cfg, project) };
+
   const repo = new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
   const cloneError = await repo.ensure();
   if (cloneError) return { ok: false, code: 'not_ready', detail: cloneError };
 
   // Scope read to the current project unless the project allows crossing, so a guessed path in
   // another project is no more readable than search would make it.
-  const { project } = await resolveScopedProject(cfg);
   const { cross_project } = await loadVaultSettings(cfg.projectDir);
   if (project && !cross_project && !path.startsWith(`projects/${project.slug}/`)) {
     return { ok: false, code: 'path_refused', detail: `outside the current project (${project.slug}); set cross_project to read another` };

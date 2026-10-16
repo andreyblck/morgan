@@ -33,7 +33,7 @@ async function getSync(): Promise<Sync | null> {
   return sync;
 }
 
-const server = new McpServer({ name: 'morgan-vault', version: '0.2.0' }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: 'morgan-vault', version: '0.2.1' }, { instructions: INSTRUCTIONS });
 
 const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] });
 

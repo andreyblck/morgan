@@ -9,7 +9,7 @@ import { git } from '../git.js';
 import { parseNote, serializeNote, type Frontmatter } from '../notes.js';
 import { loadVaultSettings } from '../projectContext.js';
 import { Repo } from '../repo.js';
-import { resolveScopedProject } from '../project.js';
+import { ownerAllowed, outOfScopeReason, resolveScopedProject } from '../project.js';
 import { KINDS, NOTE_TYPES, type NoteType } from '../schema/index.js';
 import { ulid } from '../ulid.js';
 
@@ -88,6 +88,8 @@ export async function writeNote(cfg: Config, input: { type: NoteType; fields: Re
 
   const { project, reason } = await resolveScopedProject(cfg);
   if (!project) return refuse('project_unknown', reason ?? 'no project');
+  // A project outside this vault's owners behaves as no vault: nothing is written there.
+  if (!ownerAllowed(cfg, project)) return refuse('not_configured', outOfScopeReason(cfg, project));
 
   const repo = sharedRepo ?? new Repo(cloneDir({ ...cfg, repo: cfg.repo }), cfg.repo);
   const cloneError = await repo.ensure();

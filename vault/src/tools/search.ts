@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Config } from '../config.js';
 import type { Hit } from '../index.js';
-import { resolveScopedProject } from '../project.js';
+import { ownerAllowed, outOfScopeReason, resolveScopedProject } from '../project.js';
 import { loadVaultSettings } from '../projectContext.js';
 import { NOTE_TYPES } from '../schema/index.js';
 import type { Sync } from '../sync.js';
@@ -37,6 +37,8 @@ async function scope(cfg: Config, cross: boolean | undefined): Promise<{ project
     return { project: null };
   }
   if (!project) return { ok: false, code: 'project_unknown', detail: reason ?? 'no project' };
+  // A project outside this vault's owners behaves as no vault.
+  if (!ownerAllowed(cfg, project)) return { ok: false, code: 'not_configured', detail: outOfScopeReason(cfg, project) };
   return { project: project.slug };
 }
 

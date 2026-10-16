@@ -187,7 +187,7 @@ export class Repo {
       return { ok: false, code: 'pull_failed', detail: `git add: ${add.stderr.trim()}` };
     }
     const commit = await git(
-      ['-c', `user.name=${opts.author.name}`, '-c', `user.email=${opts.author.email}`, 'commit', '--quiet', '--only', '-m', `${opts.message}\n\n${TRAILER}/0.2.0`, '--', ...opts.paths],
+      ['-c', `user.name=${opts.author.name}`, '-c', `user.email=${opts.author.email}`, 'commit', '--quiet', '--only', '-m', `${opts.message}\n\n${TRAILER}/0.2.1`, '--', ...opts.paths],
       this.clone,
     );
     if (!commit.ok) {

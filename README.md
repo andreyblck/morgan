@@ -18,7 +18,7 @@ $$ | \_/ $$ | $$$$$$  |$$ |  $$ |\$$$$$$  |$$ |  $$ |$$ | \$$ |
 **Engineering discipline for Claude Code.**
 *Plan the job. Pull it clean. Walk away with what you came for.*
 
-![Version](https://img.shields.io/badge/version-0.2.0-1f6feb)
+![Version](https://img.shields.io/badge/version-0.2.1-1f6feb)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6)
 ![Status](https://img.shields.io/badge/status-alpha-f59e0b)

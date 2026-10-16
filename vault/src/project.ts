@@ -75,6 +75,40 @@ export function isHexSha(s: string): boolean {
   return /^[0-9a-f]{7,40}$/.test(s);
 }
 
+/** The owner segment of a normalized `host/owner/repo` remote (`acme-corp` from
+ *  `github.com/acme-corp/acme-api`), or null when there isn't one. */
+export function ownerOf(remote: string | null): string | null {
+  if (!remote) return null;
+  const parts = remote.split('/');
+  return parts.length >= 3 ? (parts[1] ?? null) : null;
+}
+
+/** Owners whose projects this vault serves: the explicit `MORGAN_VAULT_OWNERS` list, or — when
+ *  that's unset — the vault repo's own owner. `null` means no restriction, because the vault repo
+ *  is a path with no derivable owner (the test fixtures, a local bare repo). */
+export function allowedOwners(cfg: Config): string[] | null {
+  if (cfg.owners) return cfg.owners;
+  const own = ownerOf(cfg.repo ? (normalizeRemote(cfg.repo)?.remote ?? null) : null);
+  return own ? [own] : null;
+}
+
+/** Whether a resolved project is one this vault serves. In scope when the vault has no derivable
+ *  owner or the project has none (override-declared); the restriction bites only when both owners
+ *  are known and the project's isn't allowed. */
+export function ownerAllowed(cfg: Config, project: ProjectId): boolean {
+  const owners = allowedOwners(cfg);
+  if (owners === null) return true;
+  const po = ownerOf(project.remote);
+  if (po === null) return true;
+  return owners.includes(po);
+}
+
+/** Why an out-of-scope project is treated as having no vault — shown in status and refusals. */
+export function outOfScopeReason(cfg: Config, project: ProjectId): string {
+  const owners = allowedOwners(cfg);
+  return `this vault serves ${owners ? owners.join(', ') : 'any owner'}; project owner "${ownerOf(project.remote) ?? '(unknown)'}" is outside it — using .camp/ for this project`;
+}
+
 /**
  * The project this session is in, from the declared remote (not `remote get-url`, which applies
  * insteadOf). The one place every tool asks "which project".
