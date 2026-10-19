@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { startServer } from './rpc.js';
 import { makeFixture, TRAIL_BODY } from './fixture.js';
 
@@ -39,6 +41,10 @@ test('owner scope: a foreign owner behaves as no vault — status not configured
     const s = await srv.tool('search', { query: 'anything' });
     assert.equal(s.ok, false);
     assert.equal(s.code, 'not_configured', JSON.stringify(s));
+    // Out of scope means the vault is never even cloned for this project.
+    const vaultDir = join(fx.data(), 'vault');
+    const clones = existsSync(vaultDir) ? readdirSync(vaultDir).filter((e) => statSync(join(vaultDir, e)).isDirectory()) : [];
+    assert.deepEqual(clones, [], 'no clone for an out-of-scope project');
   } finally {
     await srv.close();
     fx.cleanup();

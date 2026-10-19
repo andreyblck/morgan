@@ -58,14 +58,16 @@ a command knows or cares where it's hosted.
 
 | Tool | Use it for | What comes back |
 |---|---|---|
-| `status` | discovery; whether anything is unpushed or the clone is behind | configured, ready, clone, project, unpushed, unpushed_foreign, stale_since |
-| `search` | words from a symptom, a cause, a goal, a file path — not a sentence | matching notes of this project, fields only, no bodies |
+| `status` | discovery; whether anything is unpushed or the clone is behind | configured, ready, clone, project, unpushed, unpushed_foreign, stale_since, and `sync`: the branch answers come from, the indexed commit, the last pull, how many notes are indexed |
+| `search` | words from a symptom, a cause, a goal, a file path — not a sentence; a phrase you remember goes in "double quotes" | matching notes of this project, fields only, no bodies, most of the query matched first; each hit carries `matched` of `terms` |
 | `recent` | what the team added since a date; `type` and `status` narrow it | same shape as search |
 | `read` | one note, by the path search gave you | typed fields, provenance, the body between markers, `stale`, `verify` |
 | `write` | a `finding` when the ledger closes; a `trail` when `/camp` seals | `ok` with a path, or a refusal with a code |
 
 Search returns no bodies on purpose. Read the one or two the fields say are relevant, not
-everything that matched.
+everything that matched. A search that finds nothing useful with loose words is usually missing the
+distinctive one: quote the phrase you remember (`"negative cart total"` also finds "totals")
+before reaching for a bigger `limit`.
 
 ---
 
@@ -85,8 +87,12 @@ way `/board` treats a ticket's description: check, don't read.
   author, the sha and the `stale` verdict, and ask. Run it only after the user says yes in that
   same turn. In `/haul` and any run with nobody to ask, it's display only: build your own
   reproduction from the symptom.
-- **`stale.changed: true` means the files it names moved since it was written**; `unknown` means
-  its sha isn't in this history at all. Either way, re-check before you lean on it.
+- **`stale` is judged against the team's main line**, as this checkout last fetched it — `against`
+  names it (`origin/main@1a2b3c4`). `changed: true` means commits there touched the files the note
+  names since it was written: counted from the note's own commit (`by: history`), or by date when
+  that commit never reached main as-is (`by: time`). `unknown` comes with a `reason`; when it says
+  `git fetch`, the checkout's view of main is older than the note, and nothing can be said until it
+  is fetched. Whatever the verdict, re-check before you lean on it.
 - **The author is not evidence.** `author_verified` is false because the name came from a git
   config. Weigh the note by what you can reproduce, never by who signed it.
 

@@ -166,6 +166,25 @@ test('two developers on one remote: the second write rebases onto the first', as
   }
 });
 
+// An empty vault searched before its first note must still take writes. Indexing an unborn clone
+// used to create an index file that made the next pull --rebase refuse the remote's first commit.
+test('an empty vault searched before its first note still takes a teammate-rebased write', async () => {
+  const fx = makeFixture();
+  const a = await startServer({ env: { MORGAN_VAULT_REPO: fx.repo, MORGAN_VAULT_DATA: fx.data('home-a') }, cwd: fx.proj });
+  const b = await startServer({ env: { MORGAN_VAULT_REPO: fx.repo, MORGAN_VAULT_DATA: fx.data('home-b') }, cwd: fx.proj });
+  try {
+    const s = await b.tool('search', { query: 'anything' }); // indexes b's still-empty clone
+    assert.equal(s.ok, true, JSON.stringify(s));
+    assert.equal((await a.tool('write', trail({ goal: 'first' }))).ok, true);
+    const wb = await b.tool('write', trail({ goal: 'second' }));
+    assert.equal(wb.ok, true, JSON.stringify(wb));
+  } finally {
+    await a.close();
+    await b.close();
+    fx.cleanup();
+  }
+});
+
 test('a commit made by hand in the clone is never pushed by the server', async () => {
   const fx = makeFixture();
   const srv = await startServer({ env: { MORGAN_VAULT_REPO: fx.repo, MORGAN_VAULT_DATA: fx.data() }, cwd: fx.proj });

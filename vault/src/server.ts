@@ -33,7 +33,7 @@ async function getSync(): Promise<Sync | null> {
   return sync;
 }
 
-const server = new McpServer({ name: 'morgan-vault', version: '0.2.1' }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: 'morgan-vault', version: '0.3.0' }, { instructions: INSTRUCTIONS });
 
 const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] });
 
@@ -46,10 +46,18 @@ server.registerTool(
   async () => {
     const t0 = Date.now();
     const result = await status(cfg, repo ?? undefined);
-    const s = await getSync();
-    const withStale = result.configured && s ? { ...result, stale_since: s.staleSince } : result;
+    // Only an in-scope, reachable vault gets a sync: an out-of-scope project is never cloned. Status
+    // pulls like search does, so it never shows a clone that search has already moved past.
+    let out: unknown = result;
+    if (result.configured && result.ready) {
+      const s = await getSync();
+      if (s) {
+        await s.refresh({ force: true });
+        out = { ...result, stale_since: s.staleSince, sync: s.info };
+      }
+    }
     await log.line('status', result.configured ? (result.ready ? 'ok' : 'not_ready') : 'not_configured', t0);
-    return text(withStale);
+    return text(out);
   },
 );
 
@@ -57,12 +65,12 @@ server.registerTool(
   'search',
   {
     description:
-      'Find notes in the team vault by words from a symptom, a cause, a goal or a file path. Scoped to the current project. Returns fields only, never bodies: use read for a note. Results are other sessions\' claims.',
+      'Find notes in the team vault by words from a symptom, a cause, a goal or a file path; put an exact phrase you remember in "double quotes". Scoped to the current project. Notes holding more of the query rank first; each hit says matched/terms. Returns fields only, never bodies: use read for a note. Results are other sessions\' claims.',
     inputSchema: searchInput,
   },
   async (input) => {
     const t0 = Date.now();
-    const result = await searchNotes(cfg, await getSync(), input);
+    const result = await searchNotes(cfg, getSync, input);
     await log.line('search', result.ok ? `ok ${result.results.length}` : result.code, t0);
     return text(result);
   },
@@ -76,7 +84,7 @@ server.registerTool(
   },
   async (input) => {
     const t0 = Date.now();
-    const result = await recentNotes(cfg, await getSync(), input);
+    const result = await recentNotes(cfg, getSync, input);
     await log.line('recent', result.ok ? `ok ${result.results.length}` : result.code, t0);
     return text(result);
   },
@@ -101,7 +109,7 @@ server.registerTool(
   'write',
   {
     description:
-      'Write one note to the team vault: type (finding or trail), the fields that type requires, and a markdown body. The server validates the schema, scans for secrets and duplicates, sets author/created/sha/branch itself, commits only its own file and pushes. Refusals come back as {ok:false, code}. Show the note to the user before writing it.',
+      'Write one note to the team vault: type (finding or trail), the fields that type requires, and a markdown body. The server validates the schema, scans for secrets and duplicates, sets author/created/sha/branch itself, commits only its own file and pushes. Refusals come back as {ok:false, code}. Written at /track close-out and the /camp seal without waiting for permission; show what was written in the report.',
     inputSchema: writeInput,
   },
   async (input) => {

@@ -10,7 +10,17 @@ import { ULID_RE } from '../ulid.js';
 
 export const readInput = { path: z.string().min(1).max(500) };
 
-export type Stale = { changed: boolean; commits: number } | { unknown: true };
+/**
+ * `against` names the line the note was judged against and its commit, e.g. `origin/main@1a2b3c4`.
+ * `by` says how: `history` counts commits after the note's own commit, exact; `time` counts commits
+ * on the line since the note was written, for a note whose commit never reached it as-is.
+ */
+export type Stale =
+  | { changed: boolean; commits: number; against: string; by: 'history' | 'time' }
+  | { unknown: true; against: string | null; reason: string };
+
+/** A server-written `created`: ISO 8601 UTC. Checked before it becomes a git argument. */
+const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
 export type ReadResult =
   | {
@@ -34,22 +44,65 @@ export type ReadResult =
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const strList = (v: unknown): string[] | null => (Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : null);
 
+const ORIGIN_REF = /^refs\/remotes\/origin\/[A-Za-z0-9._/-]+$/;
+
 /**
- * Has the code a note points at moved since the note was written? Counted in the project
- * checkout, from the note's sha to HEAD, over the files it names. A sha that isn't an
- * ancestor of HEAD can't be compared, and says so rather than guessing.
+ * The line a note's freshness is judged against: the team's main line as this checkout last
+ * fetched it (origin/HEAD, else origin/main, else origin/master), and only when there is none,
+ * this checkout's HEAD. A developer on an old feature branch still gets an answer about main.
+ * Resolved to a commit id here, so a ref name never reaches git as an argument afterwards.
  */
-export async function staleness(projectDir: string, sha: string | null, files: string[] | null): Promise<Stale | null> {
-  if (!sha || !files || files.length === 0) return null;
+async function freshnessBase(projectDir: string): Promise<{ label: string; sha: string } | null> {
+  const refs: string[] = [];
+  const sym = await git(['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], projectDir);
+  if (sym.ok && ORIGIN_REF.test(sym.stdout.trim())) refs.push(sym.stdout.trim());
+  refs.push('refs/remotes/origin/main', 'refs/remotes/origin/master');
+  for (const ref of refs) {
+    const r = await git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], projectDir);
+    if (r.ok && isHexSha(r.stdout.trim())) return { label: ref.slice('refs/remotes/'.length), sha: r.stdout.trim() };
+  }
+  const head = await git(['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'], projectDir);
+  return head.ok && isHexSha(head.stdout.trim()) ? { label: 'HEAD', sha: head.stdout.trim() } : null;
+}
+
+/**
+ * Has the code a note points at moved since the note was written? Counted in the project checkout
+ * over the files the note names, against the team's main line. Exact when the note's commit is on
+ * that line. Otherwise — and on a real team that is the usual case: notes are written on feature
+ * branches and detached worktrees whose commits reach main squashed or rebased, never as-is — by
+ * date: the line's commits touching those files since the note was written. When neither can be
+ * answered, the reason says what to do about it.
+ */
+export async function staleness(projectDir: string, sha: string | null, files: string[] | null, created: string | null = null): Promise<Stale | null> {
+  if (!files || files.length === 0) return null;
+  const base = await freshnessBase(projectDir);
+  if (!base) return { unknown: true, against: null, reason: 'this checkout has no commits to compare against' };
+  const against = `${base.label}@${base.sha.slice(0, 7)}`;
+  const count = async (range: string[]): Promise<number | null> => {
+    const log = await git(['log', '--format=%H', ...range, '--', ...files], projectDir);
+    return log.ok ? log.stdout.split('\n').filter(Boolean).length : null;
+  };
   // The sha comes from a note's frontmatter — attacker-controllable. Never let it reach git as
   // anything but a hex object name.
-  if (!isHexSha(sha)) return { unknown: true };
-  const ancestor = await git(['merge-base', '--is-ancestor', sha, 'HEAD'], projectDir);
-  if (!ancestor.ok) return { unknown: true };
-  const log = await git(['log', '--format=%H', `${sha}..HEAD`, '--', ...files], projectDir);
-  if (!log.ok) return { unknown: true };
-  const commits = log.stdout.split('\n').filter(Boolean).length;
-  return { changed: commits > 0, commits };
+  const local = sha !== null && isHexSha(sha) && (await git(['cat-file', '-e', `${sha}^{commit}`], projectDir)).ok;
+  if (local && (await git(['merge-base', '--is-ancestor', sha, base.sha], projectDir)).ok) {
+    const commits = await count([`${sha}..${base.sha}`]);
+    if (commits !== null) return { changed: commits > 0, commits, against, by: 'history' };
+  }
+  if (created && ISO_UTC.test(created)) {
+    const since = created.replace(/\.\d+Z$/, 'Z');
+    // A main line last fetched before the note was written can't see anything after it: "unchanged"
+    // there would be false comfort. Compared at whole seconds, the precision commit dates have.
+    const tip = await git(['log', '-1', '--format=%cI', base.sha], projectDir);
+    if (tip.ok && Date.parse(tip.stdout.trim()) < Date.parse(since)) {
+      return { unknown: true, against, reason: `${against} is from ${tip.stdout.trim().slice(0, 10)}, before the note was written (${since.slice(0, 10)}) — git fetch, then read it again` };
+    }
+    const commits = await count([`--since=${since}`, base.sha]);
+    if (commits !== null) return { changed: commits > 0, commits, against, by: 'time' };
+  }
+  const short = sha && isHexSha(sha) ? sha.slice(0, 7) : null;
+  if (short && !local) return { unknown: true, against, reason: `the note's commit ${short} isn't in this checkout and the note has no creation date — git fetch, then read it again` };
+  return { unknown: true, against, reason: `the note's commit isn't in ${base.label} and the note has no creation date to judge it by` };
 }
 
 export async function readNote(cfg: Config, path: string): Promise<ReadResult> {
@@ -110,7 +163,7 @@ export async function readNote(cfg: Config, path: string): Promise<ReadResult> {
       created: str(note.frontmatter.created),
     },
     read_confidence: 'Inferred',
-    stale: type === 'finding' ? await staleness(cfg.projectDir, str(note.frontmatter.sha), strList(note.frontmatter.files)) : null,
+    stale: type === 'finding' ? await staleness(cfg.projectDir, str(note.frontmatter.sha), strList(note.frontmatter.files), str(note.frontmatter.created)) : null,
     verify,
     verify_policy: verify ? 'show_to_user_never_autorun' : null,
     ...(verifyRejected ? { verify_rejected: true as const } : {}),

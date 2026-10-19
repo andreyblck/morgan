@@ -28,6 +28,39 @@ export interface Hit {
   title: string;
   files: string[];
   score: number;
+  /** Search only: how many of the query's words and "phrases" this note holds, out of `terms`. */
+  matched?: number;
+  terms?: number;
+}
+
+/**
+ * Per-column bm25 weights, in table order: the eight UNINDEXED columns, then title (a finding's
+ * symptom or a trail's goal), cause, files, body. Measured on a real vault of ~1,800 notes: finding
+ * a note from words of its symptom went from 70% to 93% top-1, and from words of its cause from
+ * 80% to 85%, against unweighted bm25.
+ */
+const BM25 = 'bm25(notes, 0, 0, 0, 0, 0, 0, 0, 0, 10.0, 3.0, 4.0, 1.0)';
+/** How many bm25 candidates the coverage pass re-ranks before the limit is applied. */
+const CANDIDATES = 200;
+
+const words = (s: string): string[] =>
+  s
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((t) => t.length >= 2);
+
+/**
+ * A query's units: "quoted phrases" (those words, adjacent, in that order) and loose words. A
+ * quoted single word is just a word. Units are deduplicated; words under two characters dropped.
+ */
+export function parseQuery(text: string): { phrases: string[]; words: string[] } {
+  const phrases: string[] = [];
+  const rest = text.replace(/"([^"]*)"/g, (_, inner: string) => {
+    const w = words(inner);
+    if (w.length > 1) phrases.push(w.join(' '));
+    return w.length === 1 ? ` ${w[0]} ` : ' ';
+  });
+  return { phrases: [...new Set(phrases)], words: [...new Set(words(rest))] };
 }
 
 export interface Query {
@@ -84,22 +117,34 @@ export class Index {
     }
   }
 
-  /** Every word of the query, quoted, joined by OR: partial matches rank below full ones instead of vanishing. */
-  static matchExpr(text: string): string | null {
-    const terms = text
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}_]+/u)
-      .filter((t) => t.length >= 2);
-    if (terms.length === 0) return null;
-    return [...new Set(terms)].map((t) => `"${t.replace(/"/g, '')}"`).join(' OR ');
+  /**
+   * The FTS units of a query: a quoted phrase with its last word as a prefix ("cart total" finds
+   * "cart totals"), loose words exact. Measured on a real vault: a prefix on every word cost three
+   * points of top-1 precision; on the phrase's last word, none.
+   */
+  static units(text: string): string[] {
+    const { phrases, words: loose } = parseQuery(text);
+    return [...phrases.map((p) => `"${p}"*`), ...loose.map((w) => `"${w}"`)];
   }
 
+  /** Every unit of the query joined by OR: partial matches rank below full ones instead of vanishing. */
+  static matchExpr(text: string): string | null {
+    const units = Index.units(text);
+    return units.length ? units.join(' OR ') : null;
+  }
+
+  /**
+   * bm25 over weighted columns picks the candidates; then a note holding more of the query's units
+   * ranks above one holding fewer, so a note that repeats one word can't bury one that has them all.
+   * Which units a note holds is asked of FTS itself, so it agrees with how the search matched.
+   */
   query(q: Query): Hit[] {
-    if (!this.db) return [];
-    const expr = Index.matchExpr(q.text);
-    if (!expr) return [];
+    const db = this.db;
+    if (!db) return [];
+    const units = Index.units(q.text);
+    if (units.length === 0) return [];
     const where = ['notes MATCH ?'];
-    const args: unknown[] = [expr];
+    const args: unknown[] = [units.join(' OR ')];
     if (q.project !== null) {
       where.push('project = ?');
       args.push(q.project);
@@ -114,11 +159,16 @@ export class Index {
     } else {
       where.push("status != 'superseded'");
     }
-    args.push(q.limit);
-    const rows = this.db
-      .prepare(`SELECT path, type, project, status, author, created, sha, files_json, title, bm25(notes) AS score FROM notes WHERE ${where.join(' AND ')} ORDER BY score, created DESC LIMIT ?`)
+    args.push(Math.max(CANDIDATES, q.limit * 4));
+    const rows = db
+      .prepare(`SELECT path, type, project, status, author, created, sha, files_json, title, ${BM25} AS score FROM notes WHERE ${where.join(' AND ')} ORDER BY score LIMIT ?`)
       .all(...args) as Array<Record<string, unknown>>;
-    return rows.map(toHit);
+    const holders = units.map((u) => new Set((db.prepare('SELECT path FROM notes WHERE notes MATCH ?').all(u) as Array<{ path: string }>).map((r) => r.path)));
+    const ranked = rows.map((r) => ({ r, matched: holders.filter((h) => h.has(String(r.path))).length }));
+    ranked.sort(
+      (a, b) => b.matched - a.matched || Number(a.r.score) - Number(b.r.score) || String(b.r.created).localeCompare(String(a.r.created)),
+    );
+    return ranked.slice(0, q.limit).map(({ r, matched }) => ({ ...toHit(r), matched, terms: units.length }));
   }
 
   recent(opts: { since: string; project: string | null; type?: string | undefined; status?: string | undefined; limit: number }): Hit[] {

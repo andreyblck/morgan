@@ -19,6 +19,12 @@ const finding = (over: Record<string, unknown> = {}, body = 'Ruled out: network 
   body,
 });
 
+// The verdict without the line it was judged against, which names a commit id that varies per run.
+const fresh = (stale: unknown) => {
+  const s = stale as { changed: boolean; commits: number };
+  return { changed: s.changed, commits: s.commits };
+};
+
 test('write(finding) round-trips with verify as an array the reader must not run on its own', async () => {
   const fx = makeFixture();
   const srv = await startServer({ env: { MORGAN_VAULT_REPO: fx.repo, MORGAN_VAULT_DATA: fx.data() }, cwd: fx.proj });
@@ -37,7 +43,8 @@ test('write(finding) round-trips with verify as an array the reader must not run
     assert.deepEqual(r.verify, FINDING.verify);
     assert.equal(r.verify_policy, 'show_to_user_never_autorun');
     assert.equal(r.read_confidence, 'Inferred');
-    assert.deepEqual(r.stale, { changed: false, commits: 0 });
+    assert.deepEqual(fresh(r.stale), { changed: false, commits: 0 });
+    assert.match(String((r.stale as { against: string }).against), /^HEAD@[0-9a-f]{7}$/);
   } finally {
     await srv.close();
     fx.cleanup();
@@ -153,18 +160,21 @@ test('stale: a finding knows when the files it names moved on, or when its sha i
     const w = await srv.tool('write', finding({ files: ['src/auth/token-store.ts'] }));
     writeFileSync(join(fx.proj, 'README.md'), '# project\nunrelated\n');
     git(['commit', '-q', '-am', 'unrelated'], fx.proj);
-    assert.deepEqual((await srv.tool('read', { path: w.path })).stale, { changed: false, commits: 0 });
+    assert.deepEqual(fresh((await srv.tool('read', { path: w.path })).stale), { changed: false, commits: 0 });
 
     mkdirSync(join(fx.proj, 'src/auth'), { recursive: true });
     writeFileSync(join(fx.proj, 'src/auth/token-store.ts'), 'export const x = 1;\n');
     git(['add', 'src/auth/token-store.ts'], fx.proj);
     git(['commit', '-q', '-m', 'touch the store'], fx.proj);
-    assert.deepEqual((await srv.tool('read', { path: w.path })).stale, { changed: true, commits: 1 });
+    assert.deepEqual(fresh((await srv.tool('read', { path: w.path })).stale), { changed: true, commits: 1 });
 
     // Rewrite history so the note's sha is no longer an ancestor of HEAD.
     git(['reset', '-q', '--hard', 'HEAD~2'], fx.proj);
     git(['commit', '-q', '--allow-empty', '--amend', '-m', 'rewritten'], fx.proj);
-    assert.deepEqual((await srv.tool('read', { path: w.path })).stale, { unknown: true });
+    // Off the line now: judged by date instead, and nothing on HEAD touched the file since.
+    const rewritten = (await srv.tool('read', { path: w.path })).stale as { by: string };
+    assert.deepEqual(fresh(rewritten), { changed: false, commits: 0 });
+    assert.equal(rewritten.by, 'time');
   } finally {
     await srv.close();
     fx.cleanup();

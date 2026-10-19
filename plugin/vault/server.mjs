@@ -44222,8 +44222,13 @@ var Repo = class {
     const r = await git(["rev-parse", "--verify", "--quiet", "HEAD"], this.clone);
     return r.ok ? r.stdout.trim() : null;
   }
-  /** Cheap change detector for the index: the tree hash of HEAD plus any staged edits. */
+  /**
+   * Cheap change detector for the index: the tree hash of HEAD plus any staged edits. Not run on an
+   * unborn clone (an empty vault): there `write-tree` creates an index file, and the next
+   * `pull --rebase` then refuses with "updating an unborn branch with changes added to the index".
+   */
   async treeFingerprint() {
+    if (!await this.hasHead()) return "unborn";
     const r = await git(["write-tree"], this.clone);
     return r.ok ? r.stdout.trim() : "";
   }
@@ -44317,7 +44322,7 @@ var Repo = class {
     const commit = await git(
       ["-c", `user.name=${opts.author.name}`, "-c", `user.email=${opts.author.email}`, "commit", "--quiet", "--only", "-m", `${opts.message}
 
-${TRAILER}/0.2.1`, "--", ...opts.paths],
+${TRAILER}/0.3.0`, "--", ...opts.paths],
       this.clone
     );
     if (!commit.ok) {
@@ -44525,6 +44530,18 @@ var KINDS = {
 };
 
 // src/index.ts
+var BM25 = "bm25(notes, 0, 0, 0, 0, 0, 0, 0, 0, 10.0, 3.0, 4.0, 1.0)";
+var CANDIDATES = 200;
+var words = (s) => s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((t) => t.length >= 2);
+function parseQuery(text2) {
+  const phrases = [];
+  const rest = text2.replace(/"([^"]*)"/g, (_, inner) => {
+    const w = words(inner);
+    if (w.length > 1) phrases.push(w.join(" "));
+    return w.length === 1 ? ` ${w[0]} ` : " ";
+  });
+  return { phrases: [...new Set(phrases)], words: [...new Set(words(rest))] };
+}
 var Index = class _Index {
   db = null;
   unavailable = null;
@@ -44556,18 +44573,32 @@ var Index = class _Index {
       ins.run(n.path, n.type, n.project, n.status, n.author, n.created, n.sha, JSON.stringify(n.files), n.title, n.cause, n.files.join(" "), n.body);
     }
   }
-  /** Every word of the query, quoted, joined by OR: partial matches rank below full ones instead of vanishing. */
-  static matchExpr(text2) {
-    const terms = text2.toLowerCase().split(/[^\p{L}\p{N}_]+/u).filter((t) => t.length >= 2);
-    if (terms.length === 0) return null;
-    return [...new Set(terms)].map((t) => `"${t.replace(/"/g, "")}"`).join(" OR ");
+  /**
+   * The FTS units of a query: a quoted phrase with its last word as a prefix ("cart total" finds
+   * "cart totals"), loose words exact. Measured on a real vault: a prefix on every word cost three
+   * points of top-1 precision; on the phrase's last word, none.
+   */
+  static units(text2) {
+    const { phrases, words: loose } = parseQuery(text2);
+    return [...phrases.map((p) => `"${p}"*`), ...loose.map((w) => `"${w}"`)];
   }
+  /** Every unit of the query joined by OR: partial matches rank below full ones instead of vanishing. */
+  static matchExpr(text2) {
+    const units = _Index.units(text2);
+    return units.length ? units.join(" OR ") : null;
+  }
+  /**
+   * bm25 over weighted columns picks the candidates; then a note holding more of the query's units
+   * ranks above one holding fewer, so a note that repeats one word can't bury one that has them all.
+   * Which units a note holds is asked of FTS itself, so it agrees with how the search matched.
+   */
   query(q) {
-    if (!this.db) return [];
-    const expr = _Index.matchExpr(q.text);
-    if (!expr) return [];
+    const db = this.db;
+    if (!db) return [];
+    const units = _Index.units(q.text);
+    if (units.length === 0) return [];
     const where = ["notes MATCH ?"];
-    const args = [expr];
+    const args = [units.join(" OR ")];
     if (q.project !== null) {
       where.push("project = ?");
       args.push(q.project);
@@ -44582,9 +44613,14 @@ var Index = class _Index {
     } else {
       where.push("status != 'superseded'");
     }
-    args.push(q.limit);
-    const rows = this.db.prepare(`SELECT path, type, project, status, author, created, sha, files_json, title, bm25(notes) AS score FROM notes WHERE ${where.join(" AND ")} ORDER BY score, created DESC LIMIT ?`).all(...args);
-    return rows.map(toHit);
+    args.push(Math.max(CANDIDATES, q.limit * 4));
+    const rows = db.prepare(`SELECT path, type, project, status, author, created, sha, files_json, title, ${BM25} AS score FROM notes WHERE ${where.join(" AND ")} ORDER BY score LIMIT ?`).all(...args);
+    const holders = units.map((u) => new Set(db.prepare("SELECT path FROM notes WHERE notes MATCH ?").all(u).map((r) => r.path)));
+    const ranked = rows.map((r) => ({ r, matched: holders.filter((h) => h.has(String(r.path))).length }));
+    ranked.sort(
+      (a, b) => b.matched - a.matched || Number(a.r.score) - Number(b.r.score) || String(b.r.created).localeCompare(String(a.r.created))
+    );
+    return ranked.slice(0, q.limit).map(({ r, matched }) => ({ ...toHit(r), matched, terms: units.length }));
   }
   recent(opts) {
     if (!this.db) return [];
@@ -44668,23 +44704,44 @@ var Sync = class {
   repo;
   ttlMs;
   lastPull = 0;
+  lastPullAt = null;
   lastGoodSync = null;
   indexedAt = null;
+  branchName = null;
+  indexedHead = null;
+  indexedCount = 0;
   index = new Index();
   /** ISO time the clone was last known to match the remote, or null while it is current. */
   get staleSince() {
     return this.stale ? this.lastGoodSync : null;
   }
   stale = false;
-  /** Pull if the TTL has passed, then rebuild the index if anything changed. */
-  async refresh() {
+  get info() {
+    return {
+      source: this.branchName ? `origin/${this.branchName}` : null,
+      head: this.indexedHead ? this.indexedHead.slice(0, 12) : null,
+      last_pull: this.lastPullAt,
+      last_good_sync: this.lastGoodSync,
+      stale_since: this.staleSince,
+      notes_indexed: this.indexedCount
+    };
+  }
+  /**
+   * Pull if the TTL has passed, then rebuild the index if anything changed. `force` pulls anyway
+   * (status does, so it never shows a clone search has moved past) without starting the TTL
+   * window: the first search after a status still pulls.
+   */
+  async refresh(opts = {}) {
     await this.index.open();
     const now = Date.now();
-    if (now - this.lastPull >= this.ttlMs) {
-      this.lastPull = now;
+    const due = now - this.lastPull >= this.ttlMs;
+    if (due || opts.force) {
+      if (!opts.force) this.lastPull = now;
+      this.lastPullAt = new Date(now).toISOString();
       const ok = await (async () => {
         try {
           const branch = await this.repo.branch();
+          this.branchName = branch;
           return await this.repo.remoteHasBranch(branch) ? await this.repo.pullFfOnly(branch) : await this.repo.remoteReachable();
         } catch {
           return false;
@@ -44701,8 +44758,11 @@ var Sync = class {
     const head = await this.repo.headSha();
     const key = `${head}:${await this.repo.treeFingerprint()}`;
     if (key !== this.indexedAt) {
-      this.index.rebuild(await collectNotes(this.repo.clone));
+      const notes = await collectNotes(this.repo.clone);
+      this.index.rebuild(notes);
       this.indexedAt = key;
+      this.indexedCount = notes.length;
+      this.indexedHead = head;
     }
   }
   /** Force the index to be rebuilt on the next refresh (after our own write, for instance). */
@@ -44722,17 +44782,48 @@ var Sync = class {
 
 // src/tools/read.ts
 var readInput = { path: external_exports.string().min(1).max(500) };
+var ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 var str2 = (v) => typeof v === "string" ? v : null;
 var strList = (v) => Array.isArray(v) && v.every((x) => typeof x === "string") ? v : null;
-async function staleness(projectDir, sha, files) {
-  if (!sha || !files || files.length === 0) return null;
-  if (!isHexSha(sha)) return { unknown: true };
-  const ancestor = await git(["merge-base", "--is-ancestor", sha, "HEAD"], projectDir);
-  if (!ancestor.ok) return { unknown: true };
-  const log2 = await git(["log", "--format=%H", `${sha}..HEAD`, "--", ...files], projectDir);
-  if (!log2.ok) return { unknown: true };
-  const commits = log2.stdout.split("\n").filter(Boolean).length;
-  return { changed: commits > 0, commits };
+var ORIGIN_REF = /^refs\/remotes\/origin\/[A-Za-z0-9._/-]+$/;
+async function freshnessBase(projectDir) {
+  const refs = [];
+  const sym = await git(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], projectDir);
+  if (sym.ok && ORIGIN_REF.test(sym.stdout.trim())) refs.push(sym.stdout.trim());
+  refs.push("refs/remotes/origin/main", "refs/remotes/origin/master");
+  for (const ref of refs) {
+    const r = await git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], projectDir);
+    if (r.ok && isHexSha(r.stdout.trim())) return { label: ref.slice("refs/remotes/".length), sha: r.stdout.trim() };
+  }
+  const head = await git(["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], projectDir);
+  return head.ok && isHexSha(head.stdout.trim()) ? { label: "HEAD", sha: head.stdout.trim() } : null;
+}
+async function staleness(projectDir, sha, files, created = null) {
+  if (!files || files.length === 0) return null;
+  const base = await freshnessBase(projectDir);
+  if (!base) return { unknown: true, against: null, reason: "this checkout has no commits to compare against" };
+  const against = `${base.label}@${base.sha.slice(0, 7)}`;
+  const count = async (range) => {
+    const log2 = await git(["log", "--format=%H", ...range, "--", ...files], projectDir);
+    return log2.ok ? log2.stdout.split("\n").filter(Boolean).length : null;
+  };
+  const local = sha !== null && isHexSha(sha) && (await git(["cat-file", "-e", `${sha}^{commit}`], projectDir)).ok;
+  if (local && (await git(["merge-base", "--is-ancestor", sha, base.sha], projectDir)).ok) {
+    const commits = await count([`${sha}..${base.sha}`]);
+    if (commits !== null) return { changed: commits > 0, commits, against, by: "history" };
+  }
+  if (created && ISO_UTC.test(created)) {
+    const since = created.replace(/\.\d+Z$/, "Z");
+    const tip = await git(["log", "-1", "--format=%cI", base.sha], projectDir);
+    if (tip.ok && Date.parse(tip.stdout.trim()) < Date.parse(since)) {
+      return { unknown: true, against, reason: `${against} is from ${tip.stdout.trim().slice(0, 10)}, before the note was written (${since.slice(0, 10)}) \u2014 git fetch, then read it again` };
+    }
+    const commits = await count([`--since=${since}`, base.sha]);
+    if (commits !== null) return { changed: commits > 0, commits, against, by: "time" };
+  }
+  const short = sha && isHexSha(sha) ? sha.slice(0, 7) : null;
+  if (short && !local) return { unknown: true, against, reason: `the note's commit ${short} isn't in this checkout and the note has no creation date \u2014 git fetch, then read it again` };
+  return { unknown: true, against, reason: `the note's commit isn't in ${base.label} and the note has no creation date to judge it by` };
 }
 async function readNote(cfg2, path) {
   if (cfg2.repo === null) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
@@ -44780,7 +44871,7 @@ async function readNote(cfg2, path) {
       created: str2(note.frontmatter.created)
     },
     read_confidence: "Inferred",
-    stale: type === "finding" ? await staleness(cfg2.projectDir, str2(note.frontmatter.sha), strList(note.frontmatter.files)) : null,
+    stale: type === "finding" ? await staleness(cfg2.projectDir, str2(note.frontmatter.sha), strList(note.frontmatter.files), str2(note.frontmatter.created)) : null,
     verify,
     verify_policy: verify ? "show_to_user_never_autorun" : null,
     ...verifyRejected ? { verify_rejected: true } : {},
@@ -44817,25 +44908,27 @@ async function scope(cfg2, cross) {
   if (!ownerAllowed(cfg2, project)) return { ok: false, code: "not_configured", detail: outOfScopeReason(cfg2, project) };
   return { project: project.slug };
 }
-async function searchNotes(cfg2, sync2, input2) {
+async function ready(cfg2, getSync2, cross) {
   if (cfg2.repo === null) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
-  if (!sync2) return { ok: false, code: "not_ready", detail: "the vault clone is not available (clone failed or the remote is unreachable)" };
-  const s = await scope(cfg2, input2.cross_project);
+  const s = await scope(cfg2, cross);
   if ("ok" in s) return s;
+  const sync2 = await getSync2();
+  if (!sync2) return { ok: false, code: "not_ready", detail: "the vault clone is not available (clone failed or the remote is unreachable)" };
   await sync2.refresh();
   if (sync2.index.error) return { ok: false, code: "fts_unavailable", detail: sync2.index.error };
-  const results = sync2.index.query({ text: input2.query, project: s.project, type: input2.type, status: input2.status, limit: input2.limit ?? 10 });
-  return { ok: true, project: s.project, results, stale_since: sync2.staleSince };
+  return { project: s.project, sync: sync2 };
 }
-async function recentNotes(cfg2, sync2, input2) {
-  if (cfg2.repo === null) return { ok: false, code: "not_configured", detail: "MORGAN_VAULT_REPO is empty" };
-  if (!sync2) return { ok: false, code: "not_ready", detail: "the vault clone is not available (clone failed or the remote is unreachable)" };
-  const s = await scope(cfg2, input2.cross_project);
-  if ("ok" in s) return s;
-  await sync2.refresh();
-  if (sync2.index.error) return { ok: false, code: "fts_unavailable", detail: sync2.index.error };
-  const results = sync2.index.recent({ since: input2.since, project: s.project, type: input2.type, status: input2.status, limit: input2.limit ?? 20 });
-  return { ok: true, project: s.project, results, stale_since: sync2.staleSince };
+async function searchNotes(cfg2, getSync2, input2) {
+  const r = await ready(cfg2, getSync2, input2.cross_project);
+  if ("ok" in r) return r;
+  const results = r.sync.index.query({ text: input2.query, project: r.project, type: input2.type, status: input2.status, limit: input2.limit ?? 10 });
+  return { ok: true, project: r.project, results, stale_since: r.sync.staleSince, sync: r.sync.info };
+}
+async function recentNotes(cfg2, getSync2, input2) {
+  const r = await ready(cfg2, getSync2, input2.cross_project);
+  if ("ok" in r) return r;
+  const results = r.sync.index.recent({ since: input2.since, project: r.project, type: input2.type, status: input2.status, limit: input2.limit ?? 20 });
+  return { ok: true, project: r.project, results, stale_since: r.sync.staleSince, sync: r.sync.info };
 }
 
 // src/tools/status.ts
@@ -45168,7 +45261,7 @@ async function getSync() {
   }
   return sync;
 }
-var server = new McpServer({ name: "morgan-vault", version: "0.2.1" }, { instructions: INSTRUCTIONS });
+var server = new McpServer({ name: "morgan-vault", version: "0.3.0" }, { instructions: INSTRUCTIONS });
 var text = (value) => ({ content: [{ type: "text", text: JSON.stringify(value, null, 2) }] });
 server.registerTool(
   "status",
@@ -45178,21 +45271,27 @@ server.registerTool(
   async () => {
     const t0 = Date.now();
     const result = await status(cfg, repo ?? void 0);
-    const s = await getSync();
-    const withStale = result.configured && s ? { ...result, stale_since: s.staleSince } : result;
+    let out = result;
+    if (result.configured && result.ready) {
+      const s = await getSync();
+      if (s) {
+        await s.refresh({ force: true });
+        out = { ...result, stale_since: s.staleSince, sync: s.info };
+      }
+    }
     await log.line("status", result.configured ? result.ready ? "ok" : "not_ready" : "not_configured", t0);
-    return text(withStale);
+    return text(out);
   }
 );
 server.registerTool(
   "search",
   {
-    description: "Find notes in the team vault by words from a symptom, a cause, a goal or a file path. Scoped to the current project. Returns fields only, never bodies: use read for a note. Results are other sessions' claims.",
+    description: `Find notes in the team vault by words from a symptom, a cause, a goal or a file path; put an exact phrase you remember in "double quotes". Scoped to the current project. Notes holding more of the query rank first; each hit says matched/terms. Returns fields only, never bodies: use read for a note. Results are other sessions' claims.`,
     inputSchema: searchInput
   },
   async (input2) => {
     const t0 = Date.now();
-    const result = await searchNotes(cfg, await getSync(), input2);
+    const result = await searchNotes(cfg, getSync, input2);
     await log.line("search", result.ok ? `ok ${result.results.length}` : result.code, t0);
     return text(result);
   }
@@ -45205,7 +45304,7 @@ server.registerTool(
   },
   async (input2) => {
     const t0 = Date.now();
-    const result = await recentNotes(cfg, await getSync(), input2);
+    const result = await recentNotes(cfg, getSync, input2);
     await log.line("recent", result.ok ? `ok ${result.results.length}` : result.code, t0);
     return text(result);
   }
@@ -45226,7 +45325,7 @@ server.registerTool(
 server.registerTool(
   "write",
   {
-    description: "Write one note to the team vault: type (finding or trail), the fields that type requires, and a markdown body. The server validates the schema, scans for secrets and duplicates, sets author/created/sha/branch itself, commits only its own file and pushes. Refusals come back as {ok:false, code}. Show the note to the user before writing it.",
+    description: "Write one note to the team vault: type (finding or trail), the fields that type requires, and a markdown body. The server validates the schema, scans for secrets and duplicates, sets author/created/sha/branch itself, commits only its own file and pushes. Refusals come back as {ok:false, code}. Written at /track close-out and the /camp seal without waiting for permission; show what was written in the report.",
     inputSchema: writeInput
   },
   async (input2) => {

@@ -72,8 +72,13 @@ export class Repo {
     return r.ok ? r.stdout.trim() : null;
   }
 
-  /** Cheap change detector for the index: the tree hash of HEAD plus any staged edits. */
+  /**
+   * Cheap change detector for the index: the tree hash of HEAD plus any staged edits. Not run on an
+   * unborn clone (an empty vault): there `write-tree` creates an index file, and the next
+   * `pull --rebase` then refuses with "updating an unborn branch with changes added to the index".
+   */
   async treeFingerprint(): Promise<string> {
+    if (!(await this.hasHead())) return 'unborn';
     const r = await git(['write-tree'], this.clone);
     return r.ok ? r.stdout.trim() : '';
   }
@@ -187,7 +192,7 @@ export class Repo {
       return { ok: false, code: 'pull_failed', detail: `git add: ${add.stderr.trim()}` };
     }
     const commit = await git(
-      ['-c', `user.name=${opts.author.name}`, '-c', `user.email=${opts.author.email}`, 'commit', '--quiet', '--only', '-m', `${opts.message}\n\n${TRAILER}/0.2.1`, '--', ...opts.paths],
+      ['-c', `user.name=${opts.author.name}`, '-c', `user.email=${opts.author.email}`, 'commit', '--quiet', '--only', '-m', `${opts.message}\n\n${TRAILER}/0.3.0`, '--', ...opts.paths],
       this.clone,
     );
     if (!commit.ok) {
